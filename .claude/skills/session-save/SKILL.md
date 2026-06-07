@@ -72,7 +72,7 @@ type: <user|feedback|project|reference>
 .claude/sessions/YYYY-MM-DD_HH-MM_<slug>.md
 ```
 
-- `<slug>`: 作業内容を表す短い英語（例: `paper-revision`, `eddy-analysis`）
+- `<slug>`: 作業内容を表す短い英語（例: `paper-revision`, `data-analysis`）
 - 時刻はセッション保存時点の現在時刻を使用
 
 テンプレート：

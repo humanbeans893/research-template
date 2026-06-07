@@ -41,4 +41,4 @@ Connect to the Zotero desktop app running on Windows from WSL2.
 
 ## Collection reference
 
-- **EddyAndCuurent**: key `BVS7T5VA`
+Collection keys are project-specific. Ask the user which collection to use, or list available collections before assuming a key.

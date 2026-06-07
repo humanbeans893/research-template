@@ -26,8 +26,12 @@ research-template/
 ├── scripts/             # Command-line helper scripts
 ├── data/
 │   ├── raw/             # Local raw data, ignored by Git except structure
+│   ├── interim/         # Intermediate generated data
 │   └── processed/       # Local processed data, ignored by Git except structure
-├── result/              # Figures, tables, and generated outputs
+├── result/
+│   ├── figures/         # Generated figures
+│   ├── tables/          # Generated tables
+│   └── animations/      # Generated animations and movies
 ├── draft/               # Manuscript source
 ├── config.py            # Shared paths and project settings
 ├── Dockerfile
@@ -42,12 +46,7 @@ The template keeps the `data/` directory structure, but does not include large r
 Inside Docker, `./data/raw` is mounted read-only at `/data`, and `DATA_ROOT` is set to `/data`.
 Outside Docker, `config.py` defaults to `./data/raw`.
 
-Place project data under:
-
-- `data/raw/shark/`
-- `data/raw/ocean/`
-- `data/raw/whale/`
-- `data/raw/seal/`
+Place project-specific input data under `data/raw/`. Keep large or sensitive datasets out of Git.
 
 ## Manuscript
 

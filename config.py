@@ -11,12 +11,12 @@ RESULT_DIR = PROJECT_ROOT / "result"
 DRAFT_DIR = PROJECT_ROOT / "draft"
 
 RAW_DATA_DIR = DATA_ROOT
+INTERIM_DATA_DIR = PROJECT_ROOT / "data" / "interim"
 PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
 
-SHARK_DATA_DIR = RAW_DATA_DIR / "shark"
-OCEAN_DATA_DIR = RAW_DATA_DIR / "ocean"
-WHALE_DATA_DIR = RAW_DATA_DIR / "whale"
-SEAL_DATA_DIR = RAW_DATA_DIR / "seal"
+FIGURE_DIR = RESULT_DIR / "figures"
+TABLE_DIR = RESULT_DIR / "tables"
+ANIMATION_DIR = RESULT_DIR / "animations"
 
 GEO = {
     "earth_radius_m": 6_371_000.0,
