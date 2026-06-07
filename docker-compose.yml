@@ -1,0 +1,33 @@
+services:
+  research-template:
+    build: .
+    image: research-template:latest
+    container_name: research-template
+    user: "${UID:-1000}:${GID:-1000}"
+    working_dir: /workspace
+    environment:
+      HOME: /workspace
+      DATA_ROOT: /data
+      XDG_CACHE_HOME: /workspace/.cache
+      UV_CACHE_DIR: /workspace/.cache/uv
+      MPLCONFIGDIR: /workspace/.cache/matplotlib
+    volumes:
+      - .:/workspace
+      - ./data/raw:/data:ro
+    shm_size: "16g"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    ports:
+      - "8889:8888"
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+    command: ["bash"]

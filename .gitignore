@@ -1,0 +1,114 @@
+# ============================
+# Raw / high-volume research data
+# ============================
+data/raw/**
+!data/raw/
+!data/raw/**/
+!data/raw/**/.gitkeep
+data/processed/**
+!data/processed/
+!data/processed/.gitkeep
+
+# Optional project-specific data locations
+/raw/
+/datasets/
+/input/
+/outputs/large/
+
+# ============================
+# Large file extensions
+# ============================
+*.nc
+*.h5
+*.hdf
+*.hdf5
+*.pkl
+*.pickle
+*.model
+*.weights
+*.pt
+*.pth
+*.ckpt
+*.pxp
+*.wch
+*.bin
+*.tar
+*.gz
+*.zip
+*.7z
+*.parquet
+
+# ============================
+# Python cache / compiled
+# ============================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ============================
+# Local dev caches
+# ============================
+.cache/
+.local/
+.pytest_cache/
+
+# ============================
+# Heavy result artifacts
+# ============================
+result/**/animations/**
+!result/**/animations/
+!result/**/animations/.gitkeep
+
+# ============================
+# Jupyter Notebook checkpoints
+# ============================
+.ipynb_checkpoints/
+
+# ============================
+# Environments
+# ============================
+.env
+.venv
+env/
+venv/
+
+# ============================
+# IDE files
+# ============================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ============================
+# OS files
+# ============================
+.DS_Store
+Thumbs.db
+
+# ============================
+# Logs and local settings
+# ============================
+*.log
+.claude/settings.local.json
+.claude/sessions/
+
+# ============================
+# Per-user shared memory
+# ============================
+memory
+
+# ============================
+# LaTeX build artifacts
+# ============================
+draft/*.aux
+draft/*.bbl
+draft/*.blg
+draft/*.out
+draft/*.pdf
+draft/*.fls
+draft/*.fdb_latexmk
+draft/*.synctex.gz
+draft/*.toc
