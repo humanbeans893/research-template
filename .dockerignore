@@ -1,0 +1,10 @@
+.git
+.venv
+.cache
+.pytest_cache
+__pycache__
+data
+result
+draft/*.pdf
+*.log
+.env

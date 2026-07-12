@@ -15,18 +15,11 @@ services:
       - .:/workspace
       - ./data/raw:/data:ro
     shm_size: "16g"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     dns:
       - 8.8.8.8
       - 8.8.4.4
     ports:
-      - "8889:8888"
+      - "${HOST_JUPYTER_PORT:-8889}:8888"
     restart: unless-stopped
     tty: true
     stdin_open: true

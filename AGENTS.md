@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code when working with code in this repository.
+This file provides guidance to coding agents (Claude Code, Codex CLI, and others) when working with code in this repository.
 
 Think in English. Answer in the user's requested language.
 
@@ -11,6 +11,9 @@ Think in English. Answer in the user's requested language.
 ```bash
 # Start the project container
 docker compose up -d
+
+# Optional: start with NVIDIA GPU access
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 
 # Run Python via Docker
 docker compose exec research-template uv run python <script.py>
@@ -40,6 +43,7 @@ This is a reusable research project template for analysis code, local data, gene
 - `scripts/` — Execution scripts and one-off command entrypoints.
 - `result/` — Generated figures, tables, and analysis outputs.
 - `draft/` — Manuscript, supplementary material, references, and figure assets.
+- `tests/` — Pytest test suite; run via `docker compose exec research-template uv run pytest`.
 
 ---
 
@@ -87,6 +91,9 @@ This is a reusable research project template for analysis code, local data, gene
 - Do not rely on host Python or host `.venv` for normal project execution.
 - If you must enter the container interactively, use `docker compose exec research-template bash`, but prefer direct `docker compose exec ... uv run ...`.
 - Cache and tool state inside Docker are stored under `/workspace/.cache/`.
+- GPU access is opt-in via the `docker-compose.gpu.yml` override; the base compose file runs CPU-only.
+- Copy `.env.example` to `.env` before the first `docker compose up` (sets `UID`/`GID`, optional `DATA_ROOT`).
+- `uv.lock` is committed; after `uv add`/`uv remove`, commit the updated lockfile.
 
 ### LaTeX Compilation
 

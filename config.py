@@ -18,10 +18,6 @@ FIGURE_DIR = RESULT_DIR / "figures"
 TABLE_DIR = RESULT_DIR / "tables"
 ANIMATION_DIR = RESULT_DIR / "animations"
 
-GEO = {
-    "earth_radius_m": 6_371_000.0,
-}
-
 RANDOM = {
     "default_seed": 42,
 }

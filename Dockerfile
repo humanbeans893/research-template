@@ -19,12 +19,6 @@ RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 ENV LANG=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
-# System dependencies used by common geospatial Python packages.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgeos-dev libproj-dev proj-data proj-bin \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
 RUN echo 'export PS1="\[\e[01;32m\]\u@\h\[\e[00m\]:\[\e[01;34m\]\w\[\e[00m\]\$ "' >> /root/.bashrc \
     && echo 'alias ls="ls --color=auto"' >> /root/.bashrc \
     && echo 'alias grep="grep --color=auto"' >> /root/.bashrc

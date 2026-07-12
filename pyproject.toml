@@ -9,13 +9,9 @@ dependencies = [
     "numpy>=1.24",
     "xarray>=2023.0",
     "matplotlib>=3.7",
-    "geopandas>=0.14",
-    "shapely>=2.0",
     "seaborn>=0.13",
     "numba>=0.58",
-    "netCDF4>=1.6",
     "scipy>=1.11",
-    "cartopy>=0.25.0",
 ]
 
 [dependency-groups]
@@ -23,3 +19,7 @@ dev = [
     "pytest>=7.0",
     "ruff>=0.1",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
