@@ -97,6 +97,7 @@ research-template/
 ├── .claude/               # Claude Code のスキルと補助スクリプト
 ├── AGENTS.md              # エージェント向け指示の正典(英語)
 ├── CLAUDE.md              # AGENTS.md への参照のみ(内容を書かない)
+├── LICENSE                # MIT License
 ├── config.py              # 共有パス・乱数シード(42)・図の設定(DPI 等)
 ├── .env.example           # .env の雛形(UID/GID, DATA_ROOT, HOST_JUPYTER_PORT)
 ├── Dockerfile
@@ -246,6 +247,12 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 
 - ディレクトリ構成・実行環境・ワークフロールールを変えたら、`README.md` と `AGENTS.md` をセットで更新する(片方だけ直して不整合を残さない)。
 - 「なぜそうしたか」という判断や経緯は `docs/` に記録する。雛形は [`docs/templates/`](docs/templates/) にあります。
+
+## ライセンス
+
+このリポジトリに含まれるコード、設定ファイル、文書・原稿の雛形は [MIT License](LICENSE) で公開しています。
+
+このテンプレートから作成した研究リポジトリに後から追加される研究データ、個別の論文原稿、図表、第三者由来の素材へ MIT License が自動的に適用されるわけではありません。それぞれの権利者、データ提供元、共同研究契約、倫理審査、投稿規程に従って、公開範囲とライセンスを個別に定めてください。
 
 ## Claude Code スキル
 
