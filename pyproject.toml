@@ -3,6 +3,8 @@ name = "research-template"
 version = "0.1.0"
 description = "Reusable research project template for data analysis, figures, and manuscript drafting"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
     "pandas>=2.0",
