@@ -200,8 +200,9 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 
 ## Git 運用
 
-- **`main` は保護ブランチ**です(GitHub ruleset により PR 必須・force push 禁止・ブランチ削除禁止)。
-- 作業はフィーチャーブランチで行い、PR で `main` にマージします。必須承認者は 0 人なので、個人開発ではセルフマージできます。
+- **`main` は保護ブランチ**です(GitHub ruleset により PR 必須・承認 1 人・force push 禁止・ブランチ削除禁止)。
+- 作業はフィーチャーブランチで行い、PR で `main` にマージします。PR の承認・マージ判断はオーナーが管理します。
+- オーナー(リポジトリ admin)には **PR 経由に限定した bypass** があり、自分の PR は承認なしでマージできます(GitHub では自分の PR を自分で承認できないため)。直接 push はオーナーを含む全員がブロックされます。
 - このテンプレートから作った新リポジトリでも、最初の push 後に同じ保護を設定します:
 
   ```bash
@@ -210,14 +211,16 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
     "name": "protect-main",
     "target": "branch",
     "enforcement": "active",
-    "bypass_actors": [],
+    "bypass_actors": [
+      { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "pull_request" }
+    ],
     "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
     "rules": [
       { "type": "deletion" },
       { "type": "non_fast_forward" },
       { "type": "pull_request",
         "parameters": {
-          "required_approving_review_count": 0,
+          "required_approving_review_count": 1,
           "dismiss_stale_reviews_on_push": false,
           "require_code_owner_review": false,
           "require_last_push_approval": false,
