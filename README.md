@@ -1,6 +1,6 @@
 # research-template
 
-データ解析・図表生成・原稿執筆までを 1 つのリポジトリで完結させるための、研究プロジェクト用テンプレートです。
+**1 リポジトリ = 1 研究プロジェクト**として、実験の試行錯誤からデータ解析・図表生成・原稿執筆までを 1 つのリポジトリで完結させるための、研究プロジェクト用テンプレートです。
 
 - この **README.md は人間向けの入口ドキュメント(日本語)** です。
 - コーディングエージェント(Claude Code / Codex CLI など)向けの指示は **`AGENTS.md`(英語)が正典**です。詳細は「[文書整備の方針](#文書整備の方針)」を参照してください。
@@ -13,9 +13,10 @@
 2. **`data/raw/` は不変(イミュータブル)** — 生データは手で編集しない。Git には構造のみ残し、大容量ファイルはコミットしない。
 3. **派生データは再生成する** — `data/interim/`・`data/processed/` はスクリプトの出力。直接編集せず、必要ならコードを直して再生成する。
 4. **再利用コードは `src/`、スクリプトは薄く** — 共有ロジックは `src/` に置き、`scripts/` は再利用関数を呼び出すだけのエントリポイントにする。
-5. **`result/` は生成物** — 図表は手で編集せず、コードから再生成する。
-6. **実行環境は Docker + uv に統一** — ホストの Python や `.venv` には依存しない。
-7. **原稿のみホストの LuaLaTeX** — `draft/` 以下のコンパイルはコンテナではなくホストで行う。
+5. **実験は `exp/` に番号付きで蓄積** — 試行錯誤は `exp/NNN_<slug>/` の自己完結ディレクトリとして積み上げる。過去の実験は書き換えず、条件を変えるなら新しい番号で作る。
+6. **`result/` は生成物** — 図表は手で編集せず、コードから再生成する。
+7. **実行環境は Docker + uv に統一** — ホストの Python や `.venv` には依存しない。
+8. **原稿のみホストの LuaLaTeX** — `draft/` 以下のコンパイルはコンテナではなくホストで行う。
 
 ## 新しいプロジェクトの始め方(初期設定)
 
@@ -80,6 +81,8 @@ research-template/
 │   ├── methods/           # 解析手法・統計処理・アルゴリズム・モデリング
 │   └── analysis/          # 上記を組み合わせた高次の解析ワークフロー
 ├── scripts/               # 実行用エントリポイント(ロジックは持たせない)
+├── exp/                   # 番号付き実験ディレクトリ(自己完結・試行錯誤の蓄積)
+│   └── _template/         # 新しい実験の雛形(cp -r で複製して使う)
 ├── tests/                 # pytest テストスイート
 ├── data/
 │   ├── raw/               # 生データ(不変。Git には構造のみ)
@@ -166,11 +169,63 @@ lualatex -interaction=nonstopmode main.tex
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 ```
 
+## 実験の回し方
+
+試行錯誤の実験は `exp/` 以下に番号付きディレクトリとして蓄積します。詳細な規約は [`exp/README.md`](exp/README.md) を参照してください。
+
+1. **雛形をコピーする**(番号は既存の最大値 + 1):
+
+   ```bash
+   cp -r exp/_template exp/001_<slug>
+   ```
+
+2. **`params.py` を編集**してパラメータ(シード等)を決める。
+3. **`run.py` を実装**する。ロジックは `src/` の再利用コードを呼び出す形にし、冒頭の sys.path ブートストラップは残す。
+4. **実行する**:
+
+   ```bash
+   docker compose exec research-template uv run python exp/001_<slug>/run.py
+   ```
+
+   出力(図・ログ・中間データ)はすべて `exp/001_<slug>/out/` に保存されます(Git 管理外)。
+
+5. **結果と考察を `exp/001_<slug>/README.md` に記録**する。
+6. **採用が決まった図は `result/figures/` へ昇格**する。手コピーではなく、`run.py` の最終処理または `scripts/` のスクリプトでコードとしてコピー・再出力する。
+
 ## データの扱い
 
 - **コンテナ内**では、`docker-compose.yml` が `./data/raw` を `/data` に**読み取り専用**でマウントし、常に `DATA_ROOT=/data` を設定します。
 - **ホスト側**で `config.py` を使う場合は、`.env` の `DATA_ROOT`、未設定なら `./data/raw` にフォールバックします。
 - 入力データは `data/raw/` に置きます。大容量ファイル(`.nc`, `.h5`, `.parquet` など)は `.gitignore` 済みで、Git には入りません。
+
+## Git 運用
+
+- **`main` は保護ブランチ**です(GitHub ruleset により PR 必須・force push 禁止・ブランチ削除禁止)。
+- 作業はフィーチャーブランチで行い、PR で `main` にマージします。必須承認者は 0 人なので、個人開発ではセルフマージできます。
+- このテンプレートから作った新リポジトリでも、最初の push 後に同じ保護を設定します:
+
+  ```bash
+  gh api repos/<owner>/<repo>/rulesets -X POST --input - <<'JSON'
+  {
+    "name": "protect-main",
+    "target": "branch",
+    "enforcement": "active",
+    "bypass_actors": [],
+    "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+    "rules": [
+      { "type": "deletion" },
+      { "type": "non_fast_forward" },
+      { "type": "pull_request",
+        "parameters": {
+          "required_approving_review_count": 0,
+          "dismiss_stale_reviews_on_push": false,
+          "require_code_owner_review": false,
+          "require_last_push_approval": false,
+          "required_review_thread_resolution": false } }
+    ]
+  }
+  JSON
+  ```
 
 ## 文書整備の方針
 
@@ -182,6 +237,7 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 | `AGENTS.md` | 英語 | エージェント向け指示の**正典** | 運用ルールの変更は必ずここに書く |
 | `CLAUDE.md` | — | `See @AGENTS.md` の**ポインタのみ** | **内容を追加しない**。編集は常に `AGENTS.md` へ |
 | `docs/` | 日本語 | 研究ログ・意思決定記録など人間向け文書の蓄積場所 | 随時追記。使い方は [`docs/README.md`](docs/README.md) |
+| `exp/*/README.md` | 日本語 | 各実験の目的・方法・結果・考察 | 実験の作成時と、意味のある実行のたびに追記 |
 
 **更新のトリガー:**
 

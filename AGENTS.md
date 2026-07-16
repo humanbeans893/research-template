@@ -17,6 +17,7 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 
 # Run Python via Docker
 docker compose exec research-template uv run python <script.py>
+docker compose exec research-template uv run python exp/NNN_<slug>/run.py
 docker compose exec research-template uv run pytest
 
 # Add packages via Docker
@@ -41,6 +42,7 @@ This is a reusable research project template for analysis code, local data, gene
 - `data/processed/` — Analysis-ready derived data.
 - `src/` — Reusable project code.
 - `scripts/` — Execution scripts and one-off command entrypoints.
+- `exp/` — Numbered self-contained experiment directories (`NNN_<slug>/`). Copy `exp/_template/` to start one; see the Experiments section and `exp/README.md`.
 - `result/` — Generated figures, tables, and analysis outputs.
 - `draft/` — Manuscript, supplementary material, references, and figure assets.
 - `docs/` — Human-facing project documentation in Japanese (research logs, decision records); see `docs/README.md`.
@@ -54,7 +56,7 @@ This is a reusable research project template for analysis code, local data, gene
 
 - Read target files before modifying them.
 - Check the current branch and working tree: `pwd && git branch && git status`.
-- For substantial changes, create a feature branch from `main`.
+- `main` is protected (PR required, force pushes and deletion blocked). Do all work on a feature branch and merge via pull request; self-merge is allowed (0 required approvals).
 - If already on a working branch, continue as-is.
 - Check remaining TODOs with `rg -n "TODO|FIXME" .`.
 - Clarify assumptions when a request depends on unavailable data, missing credentials, or ambiguous research intent.
@@ -82,6 +84,28 @@ This is a reusable research project template for analysis code, local data, gene
 - `scripts/` — Reproducible command entrypoints.
 - `notebooks/` if present — Exploratory analysis, visualization, and prototyping.
 - Move stable notebook logic into `src/` or `scripts/`.
+
+---
+
+## Experiments
+
+Iterative experiments live under `exp/`, one numbered directory per experiment.
+
+### Structure
+
+- Name: `NNN_<slug>` (zero-padded sequence, e.g. `001_baseline_fit`); use the next unused number.
+- Start a new experiment with `cp -r exp/_template exp/NNN_<slug>`.
+- Each experiment is self-contained: `README.md` (purpose/method/results/notes), `run.py` (entrypoint), `params.py` (parameters), `out/` (all outputs).
+- Run with `docker compose exec research-template uv run python exp/NNN_<slug>/run.py`.
+- `run.py` begins with a sys.path bootstrap that makes `config` and `src` importable; keep it — the project is not installed as a package.
+
+### Rules
+
+- Everything an experiment produces goes into its own `out/`; `exp/*/out/` is git-ignored and never committed.
+- Commit the experiment's code and README; update the experiment `README.md` with findings after each meaningful run.
+- Treat finished experiments as immutable: never change a past experiment's `run.py`/`params.py` to produce new results — start a new numbered experiment instead. Appending notes or fixing typos in its README is fine.
+- When logic is needed by a second experiment, move it into `src/` and import it from both; never copy-paste between experiment directories.
+- Promote paper-ready figures to `result/figures/` via code (a final step in `run.py` or a script in `scripts/`), never by manual copying.
 
 ---
 
@@ -169,6 +193,7 @@ Before writing a new function, class, or helper, inspect the existing project mo
 
 - Do not commit unnecessary files.
 - Do not push without verification.
+- Do not commit directly to `main`; it is protected. Use a feature branch and open a pull request.
 - Do not rewrite shared history unless the user explicitly requests it.
 - Do not revert changes you did not make unless the user explicitly requests it.
 
