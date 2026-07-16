@@ -43,6 +43,7 @@ This is a reusable research project template for analysis code, local data, gene
 - `scripts/` — Execution scripts and one-off command entrypoints.
 - `result/` — Generated figures, tables, and analysis outputs.
 - `draft/` — Manuscript, supplementary material, references, and figure assets.
+- `docs/` — Human-facing project documentation in Japanese (research logs, decision records); see `docs/README.md`.
 - `tests/` — Pytest test suite; run via `docker compose exec research-template uv run pytest`.
 
 ---
