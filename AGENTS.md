@@ -56,7 +56,7 @@ This is a reusable research project template for analysis code, local data, gene
 
 - Read target files before modifying them.
 - Check the current branch and working tree: `pwd && git branch && git status`.
-- `main` is protected (PR required, force pushes and deletion blocked). Do all work on a feature branch and merge via pull request; self-merge is allowed (0 required approvals).
+- `main` is protected (PR required with 1 approving review, force pushes and deletion blocked). Do all work on a feature branch and merge via pull request. The repository admin has PR-only bypass and can self-merge without a review; direct pushes are blocked for everyone.
 - If already on a working branch, continue as-is.
 - Check remaining TODOs with `rg -n "TODO|FIXME" .`.
 - Clarify assumptions when a request depends on unavailable data, missing credentials, or ambiguous research intent.
