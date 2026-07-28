@@ -32,6 +32,23 @@ pwd && git branch && git status
 
 ---
 
+## Session State and Handoff
+
+- Read `STATE.md` first in every session; it is the single operational page for
+  cross-agent (Claude Code / Codex) handoff: running jobs, pending decisions,
+  next actions.
+- Update `STATE.md` immediately when operational state changes (job submitted or
+  finished, decision made, direction changed).
+- `STATE.md` holds operational state only. Scientific narrative stays canonical
+  in `docs/` research logs and decision records, and per-experiment results in
+  `exp/NNN_<slug>/README.md` — link, do not duplicate.
+- Before any long or costly job, walk `docs/launch-checklist.md`. Log every such
+  job in `exp/JOBS.md` immediately at submission and again at completion.
+- Record repeat-forbidden failure patterns in `docs/guardrails.md`; park
+  hypotheses and rejected directions in `docs/ideas.md`.
+
+---
+
 ## Project Overview
 
 This is a reusable research project template for analysis code, local data, generated results, and manuscript drafting. See `README.md` for the current directory layout.
