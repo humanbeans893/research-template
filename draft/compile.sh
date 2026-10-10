@@ -32,9 +32,31 @@ fi
 mkdir -p "${build_dir}"
 cd "${draft_dir}"
 
-# Let TeX and BibTeX find sources in draft/ while writing everything to build/.
+# \include{sections/intro} writes build/sections/intro.aux, and TeX does not
+# create that directory itself: mirror the subdirectories of draft/ in build/.
+find . -mindepth 1 -type d ! -path './build' ! -path './build/*' -print0 |
+  while IFS= read -r -d '' dir; do
+    mkdir -p "${build_dir}/${dir#./}"
+  done
+
+# Let TeX and BibTeX find sources, bibliographies and a journal's .bst in
+# draft/ while writing everything to build/.
 export TEXINPUTS="${build_dir}:${draft_dir}:${TEXINPUTS:-}"
 export BIBINPUTS="${draft_dir}:${BIBINPUTS:-}"
+export BSTINPUTS="${draft_dir}:${BSTINPUTS:-}"
+
+# cites <aux>: true if the .aux file, or one it pulls in with \@input (as
+# \include does), records a citation.
+cites() {
+  local aux="$1" child
+  grep -q '\\citation' "${aux}" && return 0
+  while IFS= read -r child; do
+    if [ -f "${build_dir}/${child}" ] && cites "${build_dir}/${child}"; then
+      return 0
+    fi
+  done < <(sed -n 's/^\\@input{\(.*\)}$/\1/p' "${aux}")
+  return 1
+}
 
 # build <jobname> <source>: lualatex, BibTeX if the document has a
 # bibliography and cites something, then lualatex twice to settle citations
@@ -44,7 +66,7 @@ build() {
   local job="$1" source="$2"
   lualatex -interaction=nonstopmode -halt-on-error \
     -output-directory="${build_dir}" -jobname="${job}" "${source}"
-  if grep -q '\\bibdata' "${build_dir}/${job}.aux" && grep -q '\\citation' "${build_dir}/${job}.aux"; then
+  if grep -q '\\bibdata' "${build_dir}/${job}.aux" && cites "${build_dir}/${job}.aux"; then
     # BibTeX exits 1 for warnings (an empty field, for example) and 2 or more
     # for errors. Warnings are printed above; only errors stop the build.
     local status=0
@@ -52,6 +74,10 @@ build() {
     if [ "${status}" -gt 1 ]; then
       exit "${status}"
     fi
+  else
+    # Without BibTeX, a .bbl left by an earlier build would still be read and
+    # print references the document no longer cites.
+    rm -f "${build_dir}/${job}.bbl"
   fi
   lualatex -interaction=nonstopmode -halt-on-error \
     -output-directory="${build_dir}" -jobname="${job}" "${source}"

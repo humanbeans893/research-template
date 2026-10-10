@@ -23,18 +23,11 @@ Claude Code と Codex を行き来するとき、チャットの文脈は引き�
    - Next Actions: 優先度を付け直し、終わった行は消す
 
 2. **今回の成果が正しいファイルに入っているか確かめる。**
-   チャットにしか無いものがあれば、いま書く。
-
-   | 情報 | 正となる場所 |
-   |---|---|
-   | いまの状態・Next Actions | `STATE.md` |
-   | 長時間・高コストのジョブ | `exp/JOBS.md` |
-   | 実験の索引と状態(撤回を含む) | `exp/EXP_SUMMARY.md` |
-   | 実験の詳細(目的・方法・結果・考察) | `exp/NNN_<slug>/README.md` |
-   | 撤回した主張・繰り返さない失敗 | `docs/guardrails.md` |
-   | 有望な案・却下した案 | `docs/ideas.md` |
-   | 判断の理由・経緯 | `docs/` の研究ログ・意思決定記録 |
-   | 作業の規約 | `AGENTS.md` |
+   正となる場所は `AGENTS.md` の Single Source of Truth の表にある(表はそこだけに置き、ここには写さない)。
+   チャットにしか無いものがあれば、いま書く。特に次の3つ。
+   - 実験の結果 → その実験の `README.md` と `exp/EXP_SUMMARY.md` の行
+   - 撤回した主張・繰り返さない失敗 → `docs/guardrails.md` と `exp/EXP_SUMMARY.md` の状態欄
+   - 新しい案・却下した案 → `docs/ideas.md`
 
 3. **経緯を残す価値があれば、`docs/` に研究ログを書く**(雛形は `docs/templates/research-log.md`)。
    分岐の多い調査、方針転換、長いデバッグのとき。恒久的な判断は意思決定記録にする。

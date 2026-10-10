@@ -13,6 +13,10 @@ import pytest
 DRAFT = Path(__file__).resolve().parents[1] / "draft"
 DOCUMENTS = ("main.tex", "supplementary.tex")
 INPUT = re.compile(r"\\(?:input|include)\{([^{}]+)\}")
+# Every natbib/biblatex command with "cite" in its name takes keys, except
+# natbib's \citetext, whose argument is free text.
+CITE = re.compile(r"\\(?!citetext(?![a-zA-Z]))(?:[a-zA-Z]*cite[a-zA-Z]*|nocite)\*?(?:\s*\[[^\]]*\]){0,2}\s*\{([^{}]+)\}")
+GRAPHICSPATH = re.compile(r"\\graphicspath\s*\{((?:\s*\{[^{}]*\})+)\s*\}")
 FIGURE_EXTENSIONS = (".pdf", ".png", ".jpg", ".jpeg", ".mps", ".jbig2", ".jb2")
 
 
@@ -59,11 +63,7 @@ def test_citations_resolve_in_the_declared_bibliography(document) -> None:
             keys.extend(re.findall(r"@(?!(?:comment|string|preamble)\b)\w+\s*\{\s*([^,\s]+)",
                                    bibliography.read_text(encoding="utf-8"), flags=re.IGNORECASE))
     assert len(keys) == len(set(keys)), f"{name}: duplicate bibliography keys"
-    cited = {
-        key.strip()
-        for group in re.findall(r"\\(?:[a-zA-Z]*cite[a-zA-Z]*|nocite)\*?(?:\s*\[[^\]]*\]){0,2}\s*\{([^{}]+)\}", text)
-        for key in group.split(",")
-    }
+    cited = {key.strip() for group in CITE.findall(text) for key in group.split(",")}
     missing = cited - set(keys) - {"*"}
     assert not missing, f"{name}: cited keys not in the bibliography {sorted(missing)}"
 
@@ -85,9 +85,13 @@ def test_input_and_figure_files_exist(document) -> None:
     name, text = document
     missing_inputs = INPUT.findall(text)
     assert not missing_inputs, f"{name}: missing input files {missing_inputs}"
+    # graphicx looks in draft/ and in every directory named by \graphicspath{{a/}{b/}}.
+    directories = [DRAFT] + [
+        DRAFT / directory for group in GRAPHICSPATH.findall(text) for directory in re.findall(r"\{([^{}]*)\}", group)
+    ]
+    extensions = FIGURE_EXTENSIONS + tuple(extension.upper() for extension in FIGURE_EXTENSIONS)
     for figure in re.findall(r"\\includegraphics\*?(?:\[[^\]]*\])?\{([^{}]+)\}", text):
-        path = DRAFT / figure
-        candidates = [path] if path.suffix else [
-            path.with_suffix(extension) for extension in FIGURE_EXTENSIONS + tuple(e.upper() for e in FIGURE_EXTENSIONS)
-        ]
-        assert any(candidate.is_file() for candidate in candidates), f"{name}: missing figure {figure}"
+        names = [figure] if Path(figure).suffix else [figure + extension for extension in extensions]
+        assert any((directory / name_).is_file() for directory in directories for name_ in names), (
+            f"{name}: missing figure {figure}"
+        )
