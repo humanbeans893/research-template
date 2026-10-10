@@ -9,7 +9,8 @@ Think in English. Answer in the user's requested language.
 ## Quick Reference
 
 ```bash
-# Start the project container
+# Build the image (bakes the locked dependencies into /opt/venv) and start it
+docker compose build
 docker compose up -d
 
 # Optional: start with NVIDIA GPU access
@@ -20,11 +21,13 @@ docker compose exec research-template uv run python <script.py>
 docker compose exec research-template uv run python exp/NNN_<slug>/run.py
 docker compose exec research-template uv run pytest
 
-# Add packages via Docker
+# Add packages via Docker, then rebake the image so it keeps the change
 docker compose exec research-template uv add <package>
+docker compose build && docker compose up -d
 
-# Compile LaTeX on the host
-cd draft && lualatex -interaction=nonstopmode main.tex
+# Compile the manuscript on the host (intermediates go to draft/build/)
+bash draft/compile.sh
+bash draft/compile.sh --review   # line-numbered, double-spaced draft/main_review.pdf
 
 # Pre-git check
 pwd && git branch && git status
@@ -90,10 +93,17 @@ This is a reusable research project template for analysis code, local data, gene
 
 - Run the smallest useful verification for the change.
 - For Python changes, run targeted tests or the modified script via Docker.
-- For manuscript changes, compile the relevant TeX file with host `lualatex`.
+- For manuscript changes, build with `bash draft/compile.sh` on the host.
 - Remove resolved TODO comments and local debug output.
 - Stage only files intentionally changed for the task.
 - Confirm `git status` before committing or pushing.
+
+### What to Test
+
+- Test what guarantees a correct analysis: estimators on synthetic inputs with known answers, units, denominators and rounding against an independent calculation, and the reproduction entry points (bad input stops, existing results are not overwritten).
+- Test the system constraints: the runtime environment and the read-only raw data (`tests/test_runtime_constraints.py`).
+- For the manuscript, test only structure that breaks the PDF silently: citation keys, cross-reference labels, and input and figure files (`tests/test_manuscript_structure.py`). Do not pin headings, word counts, wording or claims; the authors check the text.
+- Add tests for new calculations, real bugs and system constraints, not for every edit of the prose. A suite that grows with every rewording stops being run.
 
 ### Notebook vs Script vs Source
 
@@ -130,18 +140,22 @@ Iterative experiments live under `exp/`, one numbered directory per experiment.
 
 - Use Docker + `uv run` for normal script and test execution.
 - Use Docker + `uv add` for package installation.
-- Do not rely on host Python or host `.venv` for normal project execution.
+- Never create a project `.venv` or `venv` on the host, and never run `python -m venv`, `virtualenv`, `uv venv`, `uv sync`, `uv run` or a project `pip install` there. Git, file operations and Docker commands run on the host; project Python, uv and tests run in the container.
+- The project environment is `/opt/venv` inside the image (`UV_PROJECT_ENVIRONMENT`), baked from `uv.lock` at build time. `HOME` (`/home/app`) and the uv cache (`/opt/uv-cache`) are Docker named volumes, and `PYTHONPYCACHEPREFIX` keeps `__pycache__` under `HOME`. Nothing environment-related is written under `/workspace`, so no `.venv`, uv cache or `__pycache__` appears on the host.
+- `uv add` updates `pyproject.toml` and `uv.lock` on the host and the environment in the running container. Run `docker compose build` afterwards so the image keeps the change.
+- The build installs `uv.lock` frozen, so a stale lock stops it (`Missing workspace member` after renaming the project in `pyproject.toml`). Update the lock with `make lock`, which runs `uv lock` in a throwaway uv container, before building.
 - If you must enter the container interactively, use `docker compose exec research-template bash`, but prefer direct `docker compose exec ... uv run ...`.
-- Cache and tool state inside Docker are stored under `/workspace/.cache/`.
+- Raw data is mounted read-only at `/data` and, through an overlay, at `/workspace/data/raw`, so it cannot be modified through either path.
 - GPU access is opt-in via the `docker-compose.gpu.yml` override; the base compose file runs CPU-only.
-- Copy `.env.example` to `.env` before the first `docker compose up` (sets `UID`/`GID`, optional `DATA_ROOT`).
+- Copy `.env.example` to `.env` before the first `docker compose build` (sets `UID`/`GID`, optional `DATA_ROOT`).
 - `uv.lock` is committed; after `uv add`/`uv remove`, commit the updated lockfile.
 
 ### LaTeX Compilation
 
-- Use host `lualatex` to compile files under `draft/`.
-- Standard command: `cd draft && lualatex -interaction=nonstopmode main.tex`.
-- For bibliography updates, run the full sequence: `lualatex` -> `bibtex main` -> `lualatex` -> `lualatex`.
+- Use host `lualatex`; the container has no TeX distribution.
+- Build with `bash draft/compile.sh` (or `make tex`). It runs `lualatex` → `bibtex` (when the document declares a bibliography and cites something) → `lualatex` → `lualatex` for `main.tex` and `supplementary.tex`, writes every intermediate file to the git-ignored `draft/build/`, and leaves only the PDFs in `draft/`.
+- Do not run `lualatex` by hand inside `draft/`. Stale `.aux` and `.bbl` files left there are picked up silently and produce a PDF with missing or outdated references.
+- `bash draft/compile.sh --review` (or `make tex-review`) writes `draft/main_review.pdf` with line numbers and double spacing for submission. `main.tex` switches only its layout on `\reviewformat`; the text is identical.
 
 ---
 
@@ -225,6 +239,7 @@ Before writing a new function, class, or helper, inspect the existing project mo
 
 - Treat `result/` as generated output.
 - Prefer regenerating figures and tables from source code.
+- Generate the numbers and tables in the manuscript from the CSVs in `result/tables/`: write LaTeX macros or table files in code and `\input` them, instead of typing values into the `.tex` files. A test that passes on the CSV does not protect a number copied into the text by hand.
 - Avoid committing large generated artifacts unless the user explicitly asks for them.
 
 ### Import Management

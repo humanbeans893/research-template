@@ -1,19 +1,36 @@
 services:
   research-template:
-    build: .
+    build:
+      context: .
+      args:
+        UID: "${UID:-1000}"
+        GID: "${GID:-1000}"
     image: research-template:latest
     container_name: research-template
     user: "${UID:-1000}:${GID:-1000}"
     working_dir: /workspace
+    # The project environment is baked into the image at /opt/venv (Dockerfile).
+    # HOME and the caches also stay outside the bind-mounted /workspace, so
+    # nothing environment-related is written back to the host.
     environment:
-      HOME: /workspace
+      HOME: /home/app
       DATA_ROOT: /data
-      XDG_CACHE_HOME: /workspace/.cache
-      UV_CACHE_DIR: /workspace/.cache/uv
-      MPLCONFIGDIR: /workspace/.cache/matplotlib
+      UV_PROJECT_ENVIRONMENT: /opt/venv
+      UV_CACHE_DIR: /opt/uv-cache
+      XDG_CACHE_HOME: /home/app/.cache
+      MPLCONFIGDIR: /home/app/.cache/matplotlib
+      # Keep import-time __pycache__ off the bind mount as well.
+      PYTHONPYCACHEPREFIX: /home/app/.cache/pycache
     volumes:
+      # Tool state under HOME (shell history, downloaded map data, compiled
+      # caches) and the uv cache survive container re-creation.
+      - home:/home/app
+      - uv-cache:/opt/uv-cache
       - .:/workspace
       - ./data/raw:/data:ro
+      # The same raw data is also visible through `.:/workspace`. Overlay it
+      # read-only there too, so it cannot be modified through either path.
+      - ./data/raw:/workspace/data/raw:ro
     shm_size: "16g"
     dns:
       - 8.8.8.8
@@ -24,3 +41,7 @@ services:
     tty: true
     stdin_open: true
     command: ["bash"]
+
+volumes:
+  home:
+  uv-cache:

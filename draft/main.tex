@@ -16,6 +16,15 @@
 \usepackage{hyperref}
 \usepackage{doi}
 \usepackage{siunitx}
+\usepackage{lineno}
+\usepackage{setspace}
+
+% `bash draft/compile.sh --review` defines \reviewformat: line numbers and
+% double spacing for submission. Only the layout changes, not the text.
+\ifdefined\reviewformat
+  \linenumbers
+  \doublespacing
+\fi
 
 \setlength{\abovecaptionskip}{0pt}
 \setlength{\belowcaptionskip}{0pt}

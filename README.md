@@ -15,7 +15,7 @@
 4. **再利用コードは `src/`、スクリプトは薄く** — 共有ロジックは `src/` に置き、`scripts/` は再利用関数を呼び出すだけのエントリポイントにする。
 5. **実験は `exp/` に番号付きで蓄積** — 試行錯誤は `exp/NNN_<slug>/` の自己完結ディレクトリとして積み上げる。過去の実験は書き換えず、条件を変えるなら新しい番号で作る。
 6. **`result/` は生成物** — 図表は手で編集せず、コードから再生成する。
-7. **実行環境は Docker + uv に統一** — ホストの Python や `.venv` には依存しない。
+7. **実行環境は Docker + uv に統一** — 依存環境はイメージ内の `/opt/venv` に置き、ホストに `.venv` を作らない。ホストの Python には依存しない。
 8. **原稿のみホストの LuaLaTeX** — `draft/` 以下のコンパイルはコンテナではなくホストで行う。
 
 ## 新しいプロジェクトの始め方(初期設定)
@@ -41,6 +41,12 @@ git remote add origin <新プロジェクトの URL>
 | `docker-compose.yml` のサービスキー `research-template` | **変更しない** | サービス名は compose プロジェクト内スコープなので衝突しない。据え置けば README・`AGENTS.md` 内のすべてのコマンドがそのまま動く |
 | `README.md` のタイトル・冒頭説明 | **変更する** | プロジェクトの内容に合わせて書き換える |
 
+`pyproject.toml` の `name` を変えたら、最初のビルドの前に `uv.lock` も更新します。ビルドは `uv.lock` の固定版をそのまま入れるので、古いままだと `Missing workspace member` で止まります。ホストに Python 環境を作らないよう、uv だけのコンテナで実行します。
+
+```bash
+make lock
+```
+
 ### 3. 環境変数を設定する
 
 ```bash
@@ -50,14 +56,14 @@ id -u; id -g   # 出力に合わせて .env の UID / GID を設定
 
 他のプロジェクトとポートが衝突する場合は、`.env` で `HOST_JUPYTER_PORT` を変更してください(既定 8889)。
 
-### 4. コンテナを起動し、依存を同期する
+### 4. イメージをビルドし、コンテナを起動する
 
 ```bash
+docker compose build
 docker compose up -d
-docker compose exec research-template uv sync
 ```
 
-依存パッケージは**イメージのビルド時ではなく実行時に同期**されます(`.venv` はマウントされた作業ディレクトリ内に作られます)。
+依存パッケージは `uv.lock` から**イメージのビルド時に**イメージ内の `/opt/venv` へ入ります。`HOME` と uv のキャッシュは Docker の名前付きボリュームに置くので、マウントした作業ディレクトリ(ホスト側)に `.venv`、uv のキャッシュ、`__pycache__` は作られません。`pyproject.toml`・`uv.lock` を変えたら、`docker compose build` でイメージを作り直します。
 
 ### 5. 動作確認
 
@@ -65,11 +71,11 @@ docker compose exec research-template uv sync
 docker compose exec research-template uv run pytest
 ```
 
-`tests/test_config.py` が通れば環境構築は完了です。
+全テスト(設定、実行環境、原稿の構造)が通れば環境構築は完了です。
 
 ### 6. 最初のコミット
 
-リネームした一式と、`uv sync` で更新された `uv.lock` をコミットします。
+リネームした一式と、`make lock` で更新した `uv.lock` をコミットします。
 
 ## ディレクトリ構成
 
@@ -92,7 +98,7 @@ research-template/
 │   ├── figures/           # 生成された図
 │   ├── tables/            # 生成された表
 │   └── animations/        # 生成されたアニメーション・動画
-├── draft/                 # 原稿(LuaLaTeX。luatexja で日本語執筆可)
+├── draft/                 # 原稿(LuaLaTeX。compile.sh でビルド、luatexja で日本語執筆可)
 ├── docs/                  # 人間向けドキュメント(研究ログ・意思決定記録)
 ├── .claude/               # Claude Code のスキル
 ├── AGENTS.md              # エージェント向け指示の正典(英語)
@@ -112,6 +118,7 @@ research-template/
 ### コンテナ操作
 
 ```bash
+docker compose build                            # 初回と、pyproject.toml・uv.lock を変えた後
 docker compose up -d                            # 初回起動・設定変更後の再作成
 docker compose start                            # 停止中のコンテナを再開
 docker compose stop                             # 停止
@@ -125,13 +132,19 @@ docker compose exec research-template uv run python scripts/<script>.py
 docker compose exec research-template uv add <package>
 ```
 
-`uv add` / `uv remove` の後は、更新された `uv.lock` をコミットしてください。
+`uv add` / `uv remove` の後は、`docker compose build` でイメージにも反映し、更新された `uv.lock` をコミットしてください。
 
 ### テスト
 
 ```bash
 docker compose exec research-template uv run pytest
 ```
+
+テストは、解析の正しさを担保するもの(既知の答えを持つ合成データでの推定、単位・分母・丸めの独立計算との照合、再現手順の誤入力停止など)と、システム上の制約を守るものに絞ります。初めから入っているのは次の3つです。
+
+- `tests/test_config.py` — 共有パスと設定
+- `tests/test_runtime_constraints.py` — Docker 内で動いていること、依存環境・キャッシュが作業ディレクトリの外にあること、生データが読み取り専用であること
+- `tests/test_manuscript_structure.py` — 原稿の引用キー・参照ラベル・読み込むファイルと図が存在すること。章立て・語数・文言・主張は固定しません(文章は著者が確かめます)
 
 ### Jupyter(任意)
 
@@ -147,18 +160,15 @@ docker compose exec research-template uv run jupyter lab --ip 0.0.0.0 --port 888
 ### 原稿(LuaLaTeX、ホストで実行)
 
 ```bash
-cd draft && lualatex -interaction=nonstopmode main.tex
+bash draft/compile.sh            # draft/main.pdf と draft/supplementary.pdf(make tex でも可)
+bash draft/compile.sh --review   # 行番号とダブルスペース入りの draft/main_review.pdf(make tex-review)
 ```
 
-参考文献を更新した場合はフルシーケンスで:
+`compile.sh` は `lualatex` → `bibtex`(参考文献を宣言し、引用がある文書だけ) → `lualatex` → `lualatex` を `main.tex` と `supplementary.tex` に対して実行し、中間ファイルはすべて Git 管理外の `draft/build/` に書いて、PDF だけを `draft/` に残します。`draft/` の中で `lualatex` を手で実行しないでください。そこに残った古い `.aux`・`.bbl` が次のビルドで黙って読まれ、参考文献や参照が欠けた PDF ができます。
 
-```bash
-cd draft
-lualatex -interaction=nonstopmode main.tex
-bibtex main
-lualatex -interaction=nonstopmode main.tex
-lualatex -interaction=nonstopmode main.tex
-```
+査読用の版(`--review`)は本文が同じで、`main.tex` の `\ifdefined\reviewformat` が書式だけを切り替えます。投稿時に行番号を求める誌が多いため用意しています。
+
+原稿の数値と表は手で書かず、`result/tables/` の CSV からコードで LaTeX のマクロや表のファイルを書き出して `\input` します(CSV の検査が通っても、手で書き写した数値は古いまま残るため)。
 
 `draft/main.tex`・`draft/supplementary.tex` は見出しのみの雛形です。luatexja + 原ノ味フォントを読み込んでおり、日本語でも執筆できます。
 
@@ -195,7 +205,7 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 
 ## データの扱い
 
-- **コンテナ内**では、`docker-compose.yml` が `./data/raw` を `/data` に**読み取り専用**でマウントし、常に `DATA_ROOT=/data` を設定します。
+- **コンテナ内**では、`docker-compose.yml` が `./data/raw` を `/data` に**読み取り専用**でマウントし、常に `DATA_ROOT=/data` を設定します。同じデータは作業ディレクトリ経由(`/workspace/data/raw`)でも見えるため、そこにも読み取り専用で重ね、どちらの経路からも書き換えられないようにしています。
 - **ホスト側**で `config.py` を使う場合は、`.env` の `DATA_ROOT`、未設定なら `./data/raw` にフォールバックします。
 - 入力データは `data/raw/` に置きます。大容量ファイル(`.nc`, `.h5`, `.parquet` など)は `.gitignore` 済みで、Git には入りません。
 

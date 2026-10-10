@@ -1,10 +1,6 @@
-.git
-.venv
-.cache
-.pytest_cache
-__pycache__
-data
-result
-draft/*.pdf
-*.log
-.env
+# The image only needs the dependency definitions (see the Dockerfile COPY).
+# Keep data, results, git history and host caches out of the build context.
+*
+!pyproject.toml
+!uv.lock
+!.python-version
