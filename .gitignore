@@ -96,6 +96,7 @@ venv/
 # OS files
 # ============================
 .DS_Store
+._*
 Thumbs.db
 
 # ============================
@@ -104,6 +105,8 @@ Thumbs.db
 *.log
 .claude/settings.local.json
 .claude/sessions/
+# Codex project settings can carry API keys and other secrets.
+.codex/config.toml
 
 # ============================
 # Per-user shared memory
@@ -113,6 +116,8 @@ memory
 # ============================
 # LaTeX build artifacts
 # ============================
+# draft/compile.sh writes every intermediate here.
+draft/build/
 draft/*.aux
 draft/*.bbl
 draft/*.blg

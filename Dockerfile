@@ -25,4 +25,35 @@ RUN echo 'export PS1="\[\e[01;32m\]\u@\h\[\e[00m\]:\[\e[01;34m\]\w\[\e[00m\]\$ "
 
 RUN npm install -g @anthropic-ai/claude-code
 
+# The container runs as the host user (docker-compose.yml `user:`), so give that
+# UID/GID a real account with a home outside the bind-mounted /workspace. A UID
+# the base image already has (0 for a root host user) keeps its account; only
+# the home directory is added.
+ARG UID=1000
+ARG GID=1000
+RUN (getent group "${GID}" >/dev/null || groupadd -g "${GID}" app) \
+    && (getent passwd "${UID}" >/dev/null || useradd -m -u "${UID}" -g "${GID}" -s /bin/bash app) \
+    && mkdir -p /home/app \
+    && chown "${UID}:${GID}" /home/app
+
+# The project environment lives in the image at /opt/venv, never in
+# /workspace/.venv: /workspace is the bind-mounted repository, and an
+# environment there would be written back to the host.
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
+    VIRTUAL_ENV=/opt/venv \
+    UV_CACHE_DIR=/opt/uv-cache \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_LINK_MODE=copy \
+    PYTHONPYCACHEPREFIX=/home/app/.cache/pycache \
+    PATH=/opt/venv/bin:$PATH
+RUN mkdir -p /opt/venv /opt/uv-cache /opt/project \
+    && chown "${UID}:${GID}" /opt/venv /opt/uv-cache /opt/project
+
+# Bake the locked dependencies (all groups) into the image. Rebuild with
+# `docker compose build` whenever pyproject.toml or uv.lock changes.
+USER ${UID}:${GID}
+COPY --chown=${UID}:${GID} pyproject.toml uv.lock .python-version /opt/project/
+RUN cd /opt/project && uv sync --frozen --no-install-project --all-groups
+USER root
+
 WORKDIR /workspace

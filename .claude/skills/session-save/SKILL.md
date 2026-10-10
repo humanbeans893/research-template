@@ -1,3 +1,8 @@
+---
+name: session-save
+description: セッションの作業内容を、Claude のメモリと .claude/sessions/ 以下の Markdown ログの2箇所に保存する
+---
+
 # /session-save
 
 セッションの作業内容をClaude メモリとユーザー向けMarkdownの2箇所に保存する。

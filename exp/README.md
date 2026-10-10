@@ -22,18 +22,20 @@
 cp -r exp/_template exp/001_<slug>   # 番号は既存の最大値 + 1
 ```
 
-1. `params.py` を編集してパラメータを決める。
-2. `run.py` を実装する(ロジックは `src/` を呼び出す。冒頭の sys.path ブートストラップは消さない)。
-3. 実行する:
+1. `exp/EXP_SUMMARY.md` の表に1行足す(番号・slug・一行で・状態)。
+2. `params.py` を編集してパラメータを決める。
+3. `run.py` を実装する(ロジックは `src/` を呼び出す。冒頭の sys.path ブートストラップは消さない)。
+4. 実行する:
 
    ```bash
    docker compose exec research-template uv run python exp/001_<slug>/run.py
    ```
 
-4. 結果・考察を `exp/001_<slug>/README.md` に記録する(目的・方法・結果・考察)。
+5. 結果・考察を `exp/001_<slug>/README.md` に記録し、`exp/EXP_SUMMARY.md` の行も直す。
 
 ## ルール
 
+- **索引を最新に保つ** — 結論が変わったら `exp/EXP_SUMMARY.md` の「一行で」と「状態」を直す。撤回・訂正したら状態欄に必ず書き、理由と証拠は `docs/guardrails.md` へ。見出しだけ読むと撤回済みの結論が生きて見える事故を防ぐ。`tests/test_repo_structure.py` が実験ディレクトリと索引の対応を検査する。
 - **過去の実験は書き換えない** — 完了した実験の `run.py` / `params.py` を変更して結果を差し替えない。条件を変えるなら新しい番号の実験を作る(README への追記・誤字修正は可)。
 - **再利用ロジックは `src/` へ** — 2 つ以上の実験で使うコードは、実験間でコピペせず `src/` に移して import する。
 - **出力はすべて `out/` へ** — 実験の生成物は自分の `out/` に置く。`out/` は Git に入らない。

@@ -28,7 +28,7 @@
 
 ## 投入直後・完了後
 
-- [ ] 投入直後: `exp/JOBS.md` へ行を追加し、`STATE.md` を更新した。
+- [ ] 投入直後: `exp/JOBS.md` へ行を追加し、`STATE.md` を更新した(`write-handoff` スキル。確認方法と結果の記録先まで書く)。
 - [ ] 完了後: 結果を `exp/JOBS.md` に追記し、考察を `exp/NNN_<slug>/README.md` へ、
       経緯を `docs/` の研究ログへ記録した。
 - [ ] 失敗した場合: 失敗も記録として残し、原因を `docs/guardrails.md` に追記した。
