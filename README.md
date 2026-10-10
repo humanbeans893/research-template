@@ -94,7 +94,7 @@ research-template/
 │   └── animations/        # 生成されたアニメーション・動画
 ├── draft/                 # 原稿(LuaLaTeX。luatexja で日本語執筆可)
 ├── docs/                  # 人間向けドキュメント(研究ログ・意思決定記録)
-├── .claude/               # Claude Code のスキルと補助スクリプト
+├── .claude/               # Claude Code のスキル
 ├── AGENTS.md              # エージェント向け指示の正典(英語)
 ├── CLAUDE.md              # AGENTS.md への参照のみ(内容を書かない)
 ├── LICENSE                # MIT License
@@ -199,6 +199,12 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 - **ホスト側**で `config.py` を使う場合は、`.env` の `DATA_ROOT`、未設定なら `./data/raw` にフォールバックします。
 - 入力データは `data/raw/` に置きます。大容量ファイル(`.nc`, `.h5`, `.parquet` など)は `.gitignore` 済みで、Git には入りません。
 
+## 文献
+
+- 書誌の正は `draft/reference.bib` だけです。文献管理ソフトとは同期しません。
+- エージェントは Zotero などの文献管理ソフトに接続しません。自分のライブラリの書誌が要るときは、BibTeX などで書き出してエージェントに渡します。
+- 書誌を足すときは、エージェントが見つけたものも渡されたものも、DOI から原典(出版社のページ、PMC、Crossref、保存版)と照合してから入れます。引用する数値も原文で確かめます。
+
 ## Git 運用
 
 - **`main` は保護ブランチ**です(GitHub ruleset により PR 必須・承認 1 人・force push 禁止・ブランチ削除禁止)。
@@ -257,4 +263,3 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 ## Claude Code スキル
 
 - **`/session-save`** — セッションでの作業内容をメモリと `.claude/sessions/` 以下の Markdown ログに保存します。
-- **`/zotero-connect`** — WSL2 から Windows 上の Zotero へのポートフォワードを開始します(`.claude/scripts/zotero-forward.py`)。詳細は `AGENTS.md` の Zotero MCP 節を参照してください。
