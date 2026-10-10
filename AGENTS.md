@@ -239,13 +239,11 @@ Before writing a new function, class, or helper, inspect the existing project mo
 
 ---
 
-## Zotero MCP (Optional, WSL2)
+## References
 
-If Zotero is running on Windows and MCP access is needed from WSL2, use `/zotero-connect` to start the local port forwarder.
-
-- **Skill**: `/zotero-connect`
-- **Script**: `.claude/scripts/zotero-forward.py`
-- **Collection**: project-specific; ask the user or list available collections before assuming a collection key.
+- `draft/reference.bib` is the single source of truth for bibliographic entries. Do not sync it with a reference manager.
+- Agents do not connect to Zotero or any other reference manager. When the user wants an entry from their own library, they hand it over (for example, as a BibTeX export).
+- Before adding an entry, whether you found it or the user handed it over, check it against the original through its DOI (publisher page, PMC, Crossref, or an archived copy). Check any number you quote from it against the original text as well.
 
 ---
 
