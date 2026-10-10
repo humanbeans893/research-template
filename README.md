@@ -88,7 +88,9 @@ research-template/
 │   └── analysis/          # 上記を組み合わせた高次の解析ワークフロー
 ├── scripts/               # 実行用エントリポイント(ロジックは持たせない)
 ├── exp/                   # 番号付き実験ディレクトリ(自己完結・試行錯誤の蓄積)
-│   └── _template/         # 新しい実験の雛形(cp -r で複製して使う)
+│   ├── _template/         # 新しい実験の雛形(cp -r で複製して使う)
+│   ├── EXP_SUMMARY.md     # 実験の索引と状態(撤回を含む)
+│   └── JOBS.md            # 長時間・高コストのジョブの台帳
 ├── tests/                 # pytest テストスイート
 ├── data/
 │   ├── raw/               # 生データ(不変。Git には構造のみ)
@@ -101,6 +103,8 @@ research-template/
 ├── draft/                 # 原稿(LuaLaTeX。compile.sh でビルド、luatexja で日本語執筆可)
 ├── docs/                  # 人間向けドキュメント(研究ログ・意思決定記録)
 ├── .claude/               # Claude Code のスキル
+├── .agents/               # Codex のスキル(write-handoff は .claude/skills/ と同じ内容)
+├── STATE.md               # 運用状態の単一ページ(セッション開始時に最初に読む)
 ├── AGENTS.md              # エージェント向け指示の正典(英語)
 ├── CLAUDE.md              # AGENTS.md への参照のみ(内容を書かない)
 ├── LICENSE                # MIT License
@@ -140,11 +144,12 @@ docker compose exec research-template uv add <package>
 docker compose exec research-template uv run pytest
 ```
 
-テストは、解析の正しさを担保するもの(既知の答えを持つ合成データでの推定、単位・分母・丸めの独立計算との照合、再現手順の誤入力停止など)と、システム上の制約を守るものに絞ります。初めから入っているのは次の3つです。
+テストは、解析の正しさを担保するもの(既知の答えを持つ合成データでの推定、単位・分母・丸めの独立計算との照合、再現手順の誤入力停止など)と、システム上の制約を守るものに絞ります。初めから入っているのは次の4つです。
 
 - `tests/test_config.py` — 共有パスと設定
 - `tests/test_runtime_constraints.py` — Docker 内で動いていること、依存環境・キャッシュが作業ディレクトリの外にあること、生データが読み取り専用であること
 - `tests/test_manuscript_structure.py` — 原稿の引用キー・参照ラベル・読み込むファイルと図が存在すること。章立て・語数・文言・主張は固定しません(文章は著者が確かめます)
+- `tests/test_repo_structure.py` — 引き継ぎ用の文書があること、常に読む文書が150行以内であること、実験ディレクトリと `exp/EXP_SUMMARY.md` の対応、スキルを両方のエージェントが読み込めること
 
 ### Jupyter(任意)
 
@@ -184,11 +189,13 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 
 試行錯誤の実験は `exp/` 以下に番号付きディレクトリとして蓄積します。詳細な規約は [`exp/README.md`](exp/README.md) を参照してください。
 
-1. **雛形をコピーする**(番号は既存の最大値 + 1):
+1. **雛形をコピーし、索引に1行足す**(番号は既存の最大値 + 1):
 
    ```bash
    cp -r exp/_template exp/001_<slug>
    ```
+
+   `exp/EXP_SUMMARY.md` の表に番号・slug・一行の要約・状態を足します(足し忘れはテストが検出します)。
 
 2. **`params.py` を編集**してパラメータ(シード等)を決める。
 3. **`run.py` を実装**する。ロジックは `src/` の再利用コードを呼び出す形にし、冒頭の sys.path ブートストラップは残す。
@@ -200,7 +207,7 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 
    出力(図・ログ・中間データ)はすべて `exp/001_<slug>/out/` に保存されます(Git 管理外)。
 
-5. **結果と考察を `exp/001_<slug>/README.md` に記録**する。
+5. **結果と考察を `exp/001_<slug>/README.md` に記録**し、`exp/EXP_SUMMARY.md` の行も直す。結論を撤回・訂正したら、索引の状態欄と `docs/guardrails.md` に同時に書く(見出しだけ読むと撤回済みの結論が生きて見えるため)。
 6. **採用が決まった図は `result/figures/` へ昇格**する。手コピーではなく、`run.py` の最終処理または `scripts/` のスクリプトでコードとしてコピー・再出力する。
 
 ## データの扱い
@@ -256,13 +263,19 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 | `README.md` | 日本語 | 人間向けの入口(方針・手順・コマンド) | 構成やワークフローの変更時に `AGENTS.md` と**同時に**更新する |
 | `AGENTS.md` | 英語 | エージェント向け指示の**正典** | 運用ルールの変更は必ずここに書く |
 | `CLAUDE.md` | — | `See @AGENTS.md` の**ポインタのみ** | **内容を追加しない**。編集は常に `AGENTS.md` へ |
+| `STATE.md` | 日本語 | 運用状態の単一ページ(フェーズ、実行中のジョブ、決定、次の作業) | 状態が変わったらその場で。セッションの終わりと長時間ジョブの投入前は `write-handoff` スキルで。150行以内 |
+| `exp/EXP_SUMMARY.md` | 日本語 | 実験の索引と状態(撤回を含む) | 実験の作成時に1行足し、結論が変わったら直す。撤回は状態欄に必ず書く。150行以内 |
 | `docs/` | 日本語 | 研究ログ・意思決定記録など人間向け文書の蓄積場所 | 随時追記。使い方は [`docs/README.md`](docs/README.md) |
 | `exp/*/README.md` | 日本語 | 各実験の目的・方法・結果・考察 | 実験の作成時と、意味のある実行のたびに追記 |
+
+各情報の正は1箇所だけにし、同じ表を複数のファイルに持ちません(対応表は `AGENTS.md` の Single Source of Truth)。チャットの内容は、次のセッションにも、もう一方のエージェントにも引き継がれません。残す価値のある情報は、その場でファイルに書きます。
 
 **更新のトリガー:**
 
 - ディレクトリ構成・実行環境・ワークフロールールを変えたら、`README.md` と `AGENTS.md` をセットで更新する(片方だけ直して不整合を残さない)。
 - 「なぜそうしたか」という判断や経緯は `docs/` に記録する。雛形は [`docs/templates/`](docs/templates/) にあります。
+- 主張を撤回したら、その場で `docs/guardrails.md` と `exp/EXP_SUMMARY.md` の状態欄に書く。
+- 日本語の文書では、日本語で自然に書ける一般語を不必要に英語で書かない(コードの識別子と正式名称は除く)。日本語と英語が頻繁に混ざる文体を避ける。
 
 ## ライセンス
 
@@ -270,6 +283,9 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 
 このテンプレートから作成した研究リポジトリに後から追加される研究データ、個別の論文原稿、図表、第三者由来の素材へ MIT License が自動的に適用されるわけではありません。それぞれの権利者、データ提供元、共同研究契約、倫理審査、投稿規程に従って、公開範囲とライセンスを個別に定めてください。
 
-## Claude Code スキル
+## エージェントのスキル
 
-- **`/session-save`** — セッションでの作業内容をメモリと `.claude/sessions/` 以下の Markdown ログに保存します。
+Claude Code は `.claude/skills/`、Codex は `.agents/skills/` からスキルを読み込みます。どちらも先頭に YAML の見出し(`name`・`description`)が要ります。見出しの無いスキルを Codex は読み込みません。
+
+- **`write-handoff`**(Claude Code・Codex) — セッションの終わりや長時間ジョブの投入前に `STATE.md` を更新し、次のセッションが `STATE.md` だけで再開できる状態にします。2つのディレクトリに同じ内容で置きます(テストが一致を検査します)。
+- **`/session-save`**(Claude Code) — セッションでの作業内容をメモリと `.claude/sessions/` 以下の Markdown ログに保存します。
