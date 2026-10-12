@@ -194,3 +194,47 @@ def test_the_template_runs_and_writes_only_to_its_out(tmp_path) -> None:
     written = sorted(p for p in set(project.rglob("*")) - before if p.is_file())
     assert written and all(p.is_relative_to(target / "out" / "smoke") for p in written), written
     assert json.loads((target / "out" / "smoke" / experiment.RECORD).read_text(encoding="utf-8"))["status"] == "completed"
+
+
+def test_promotion_is_refused_when_the_code_changed_during_the_run(run_file, monkeypatch, tmp_path) -> None:
+    states = iter([{"commit": "abc", "dirty": []}, {"commit": "abc", "dirty": [" M src/x.py"]}])
+    monkeypatch.setattr(experiment, "git_state", lambda paths: next(states))
+    with pytest.raises(AssertionError, match="code changed during the run"):
+        with experiment.start(run_file, PARAMS, []) as run:
+            run.out("t.csv").write_text("a\n1\n", encoding="utf-8")
+            run.promote("t.csv", dest_dir=tmp_path / "tables")
+    assert not (tmp_path / "tables" / "t.csv").exists()
+    assert _record(run_file)["status"] == "failed"
+
+
+def test_promotion_is_all_or_none(run_file, monkeypatch, tmp_path) -> None:
+    tables = tmp_path / "tables"
+    tables.mkdir()
+    for name in ("a.csv", "b.csv"):
+        (tables / name).write_text("old\n", encoding="utf-8")
+    real_replace = experiment.os.replace
+
+    def failing_replace(source, dest):
+        if Path(source).name == "b.csv.part":
+            raise OSError("disk full")
+        return real_replace(source, dest)
+
+    monkeypatch.setattr(experiment.os, "replace", failing_replace)
+    with pytest.raises(OSError, match="disk full"):
+        with experiment.start(run_file, PARAMS, []) as run:
+            for name in ("a.csv", "b.csv"):
+                run.out(name).write_text("new\n", encoding="utf-8")
+                run.promote(name, dest_dir=tables)
+    assert {p.name: p.read_text(encoding="utf-8") for p in tables.iterdir()} == {"a.csv": "old\n", "b.csv": "old\n"}
+
+
+def test_an_unreadable_record_needs_the_flag(run_file) -> None:
+    out = Path(run_file).parent / "out"
+    out.mkdir()
+    (out / experiment.RECORD).write_text('{"status": "runn', encoding="utf-8")  # cut off by a kill
+    with pytest.raises(AssertionError, match="unreadable"):
+        with experiment.start(run_file, PARAMS, []):
+            pass
+    with experiment.start(run_file, PARAMS, ["--overwrite"]):
+        pass
+    assert _record(run_file)["status"] == "completed"

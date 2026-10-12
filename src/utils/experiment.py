@@ -54,7 +54,10 @@ def _relative(path: Path) -> str:
 
 
 def _write(path: Path, record: dict) -> None:
-    path.write_text(json.dumps(record, indent=2, ensure_ascii=False, default=str) + "\n", encoding="utf-8")
+    # Through a temporary file, so that a kill mid-write never leaves a truncated record.
+    part = path.with_name(path.name + ".part")
+    part.write_text(json.dumps(record, indent=2, ensure_ascii=False, default=str) + "\n", encoding="utf-8")
+    os.replace(part, path)
 
 
 def git_state(paths: list[str]) -> dict:
@@ -74,8 +77,9 @@ def git_state(paths: list[str]) -> dict:
 class Run:
     """What run.py gets from ``with experiment.start(__file__, params) as run:``."""
 
-    def __init__(self, name: str, out_dir: Path, smoke: bool, seed: int, params: dict, record: dict) -> None:
-        self.name, self.out_dir, self.smoke = name, out_dir, smoke
+    def __init__(self, name: str, out_dir: Path, smoke: bool, seed: int, params: dict, record: dict,
+                 git_paths: list[str]) -> None:
+        self.name, self.out_dir, self.smoke, self._git_paths = name, out_dir, smoke, git_paths
         self.seed, self.params, self.record = seed, params, record
         self._start = time.perf_counter()
         self._staged: list[tuple[Path, Path]] = []
@@ -115,25 +119,47 @@ class Run:
         source = self._inside(name)
         assert source.is_file(), f"{_relative(source)} does not exist: write it through run.out() first"
         dest = Path(dest_dir) / Path(name).name
+        assert not dest.is_dir(), f"{_relative(dest)} is a directory"
         assert dest not in [staged for _, staged in self._staged], f"{_relative(dest)} is promoted twice"
         self._staged.append((source, dest))
         return dest
 
     def _publish(self) -> None:
-        """Copy the promoted outputs: all to temporary files first, then each into place."""
-        parts = []
+        """Put the promoted outputs in place, all or none.
+
+        The code must still be what the run started from. Every file is copied to a
+        temporary name first; if a replacement then fails, the old files come back.
+        """
+        if not self._staged:
+            return
+        now = git_state(self._git_paths)
+        assert now == self.record["git"], f"The code changed during the run (now {now}): commit, rerun, then promote"
+        parts, replaced = [], []
         try:
             for source, dest in self._staged:
                 dest.parent.mkdir(parents=True, exist_ok=True)
+                assert not dest.is_dir(), f"{_relative(dest)} is a directory"
                 part = dest.with_name(dest.name + ".part")
                 shutil.copyfile(source, part)
                 parts.append((part, dest))
+            for part, dest in parts:
+                backup = dest.with_name(dest.name + ".previous") if dest.exists() else None
+                if backup is not None:
+                    os.replace(dest, backup)
+                replaced.append((dest, backup))
+                os.replace(part, dest)
         except BaseException:
+            for dest, backup in reversed(replaced):
+                if backup is not None:
+                    os.replace(backup, dest)
+                else:
+                    dest.unlink(missing_ok=True)
             for part, _ in parts:
                 part.unlink(missing_ok=True)
             raise
-        for part, dest in parts:
-            os.replace(part, dest)
+        for dest, backup in replaced:
+            if backup is not None:
+                backup.unlink()
             self.record["promoted"].append(_relative(dest))
             self.log(f"promoted -> {_relative(dest)}")
 
@@ -151,7 +177,13 @@ def start(run_file: str, params: ModuleType, argv: list[str] | None = None) -> I
     out_dir = exp_dir / "out" / "smoke" if args.smoke else exp_dir / "out"
     out_dir.mkdir(parents=True, exist_ok=True)
     record_path = out_dir / RECORD
-    previous = json.loads(record_path.read_text(encoding="utf-8")) if record_path.is_file() else {}
+    previous = {}
+    if record_path.is_file():
+        try:
+            previous = json.loads(record_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            assert args.overwrite, f"{_relative(record_path)} is unreadable: if its run died, pass --overwrite"
+            previous = {"status": "unreadable"}
     # What an earlier run left here. A full run leaves out/smoke/ to the smoke runs.
     leftovers = sorted(p for p in out_dir.iterdir() if p.name not in ({".gitkeep"} if args.smoke else {".gitkeep", "smoke"}))
     if not (args.smoke or args.overwrite):
@@ -187,6 +219,7 @@ def start(run_file: str, params: ModuleType, argv: list[str] | None = None) -> I
     if leftovers:
         print(f"[{exp_dir.name}] cleared {len(leftovers)} entries left in {_relative(out_dir)} by the earlier run", flush=True)
 
+    git_paths = [*CODE_PATHS, f"{_relative(exp_dir)}/*.py"]
     lock = config.PROJECT_ROOT / "uv.lock"
     record = {
         "experiment": exp_dir.name,
@@ -196,14 +229,14 @@ def start(run_file: str, params: ModuleType, argv: list[str] | None = None) -> I
         "started": _now(),
         "seed": params.SEED,
         "params": values,
-        "git": git_state([*CODE_PATHS, f"{_relative(exp_dir)}/*.py"]),
+        "git": git_state(git_paths),
         "python": platform.python_version(),
         "uv_lock_sha256": hashlib.sha256(lock.read_bytes()).hexdigest() if lock.is_file() else None,
         "stages": [],
         "promoted": [],
     }
     _write(record_path, record)
-    run = Run(exp_dir.name, out_dir, args.smoke, params.SEED, values, record)
+    run = Run(exp_dir.name, out_dir, args.smoke, params.SEED, values, record, git_paths)
     print(f"[{exp_dir.name}] {'smoke' if args.smoke else 'full'} run -> {_relative(out_dir)}", flush=True)
     if record["git"]["dirty"]:
         run.log(f"uncommitted files are listed in the record, and this run cannot promote: {record['git']['dirty']}")
