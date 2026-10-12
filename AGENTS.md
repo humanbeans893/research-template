@@ -247,7 +247,7 @@ experiment will be run many times.
 ### LaTeX Compilation
 
 - Use host `lualatex`; the container has no TeX distribution.
-- Build with `bash draft/compile.sh` (or `make tex`). It runs `lualatex` → `bibtex` (when the document declares a bibliography and cites something) → `lualatex` → `lualatex` for `main.tex` and `supplementary.tex`, writes every intermediate file to the git-ignored `draft/build/`, and leaves only the PDFs in `draft/`.
+- Build with `bash draft/compile.sh` (or `make tex`). It runs `lualatex` → `bibtex` (when the document declares a bibliography and cites something) → `lualatex` → `lualatex` for `main.tex` and `supplementary.tex`, writes every intermediate file to the git-ignored `draft/build/`, and leaves only the PDFs in `draft/`. It prints only errors (`file:line`; the transcripts are in `draft/build/<job>.log`) and exits non-zero when a citation or a reference is still undefined. After the CSVs change, `make paper` runs `make numbers` and then this.
 - Do not run `lualatex` by hand inside `draft/`. Stale `.aux` and `.bbl` files left there are picked up silently and produce a PDF with missing or outdated references.
 - `bash draft/compile.sh --review` (or `make tex-review`) writes `draft/main_review.pdf` with line numbers and double spacing for submission. `main.tex` switches only its layout on `\reviewformat`; the text is identical.
 
@@ -334,6 +334,8 @@ Before writing a new function, class, or helper, inspect the existing project mo
 - Treat `result/` as generated output.
 - Prefer regenerating figures and tables from source code.
 - Generate the numbers and tables in the manuscript from the CSVs in `result/tables/`: write LaTeX macros or table files in code and `\input` them, instead of typing values into the `.tex` files. A test that passes on the CSV does not protect a number copied into the text by hand.
+- For a number in the text, register a `Number` in `scripts/make_numbers.py`, run `make numbers`, write `\Name{}` in the text, and commit `draft/tables/numbers.tex` with the CSVs it reads; never edit that file by hand (`tests/test_tex_numbers.py` fails when it is stale). Format table cells with `src.utils.tex_numbers.format_value`, so tables and text round alike.
+- Figures promoted to `result/figures/` are read from there (`\graphicspath` in the manuscript); do not copy them into `draft/figures/`, which holds figures made by hand.
 - Commit `result/tables/*.csv`: they are small and canonical for the manuscript. Avoid committing large generated artifacts (animations, figures of many MB) unless the user explicitly asks for them.
 
 ### Import Management

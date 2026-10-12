@@ -100,7 +100,7 @@ research-template/
 │   ├── figures/           # 生成された図
 │   ├── tables/            # 生成された表
 │   └── animations/        # 生成されたアニメーション・動画
-├── draft/                 # 原稿(LuaLaTeX。compile.sh でビルド、luatexja で日本語執筆可)
+├── draft/                 # 原稿(LuaLaTeX。compile.sh でビルド、luatexja で日本語執筆可。tables/numbers.tex は生成物)
 ├── docs/                  # 人間向けドキュメント(研究ログ・意思決定記録)
 ├── .claude/               # Claude Code のスキルと設定(settings.json がホストでの python・uv の実行を拒否)
 ├── .agents/               # Codex のスキル(write-handoff は .claude/skills/ と同じ内容)
@@ -157,6 +157,7 @@ docker compose exec research-template uv run pytest
 - `tests/test_repo_structure.py` — 引き継ぎ用の文書があること、常に読む文書(STATE.md・索引・docs/guardrails.md)が字数の上限内で、索引の各行が短いこと、実験の名前と番号の重複、実験ディレクトリと `experiments/EXP_SUMMARY.md` の対応、各実験の `summary.md`(長さ・状態の語の一致・雛形の書き残し)、`out/` が Git に入らないこと、スキルを両方のエージェントが読み込めること
 - `tests/test_experiment_harness.py` — 実験の雛形が動き、自分の `out/` だけに書くこと。smoke・上書き防止・昇格の規則
 - `tests/test_new_experiment.py` — `make experiment` の番号・雛形の埋め込み・索引の行
+- `tests/test_tex_numbers.py` — 原稿の数値の丸め(手計算との照合)、曖昧な値・行の拒否、コミットした `numbers.tex` が CSV と一致すること
 
 ### Jupyter(任意)
 
@@ -177,11 +178,13 @@ bash draft/compile.sh            # draft/main.pdf と draft/supplementary.pdf(ma
 bash draft/compile.sh --review   # 行番号とダブルスペース入りの draft/main_review.pdf(make tex-review)
 ```
 
-`compile.sh` は `lualatex` → `bibtex`(参考文献を宣言し、引用がある文書だけ) → `lualatex` → `lualatex` を `main.tex` と `supplementary.tex` に対して実行し、中間ファイルはすべて Git 管理外の `draft/build/` に書いて、PDF だけを `draft/` に残します。`draft/` の中で `lualatex` を手で実行しないでください。そこに残った古い `.aux`・`.bbl` が次のビルドで黙って読まれ、参考文献や参照が欠けた PDF ができます。
+`compile.sh` は `lualatex` → `bibtex`(参考文献を宣言し、引用がある文書だけ) → `lualatex` → `lualatex` を `main.tex` と `supplementary.tex` に対して実行し、中間ファイルはすべて Git 管理外の `draft/build/` に書いて、PDF だけを `draft/` に残します。画面にはエラー(ファイル名と行番号)だけを出し、記録は `draft/build/<文書名>.log` に残します。未定義の引用や参照が残っていると、PDF を書いたうえで 0 以外で終わります。`draft/` の中で `lualatex` を手で実行しないでください。そこに残った古い `.aux`・`.bbl` が次のビルドで黙って読まれ、参考文献や参照が欠けた PDF ができます。
 
 査読用の版(`--review`)は本文が同じで、`main.tex` の `\ifdefined\reviewformat` が書式だけを切り替えます。投稿時に行番号を求める誌が多いため用意しています。
 
-原稿の数値と表は手で書かず、`result/tables/` の CSV からコードで LaTeX のマクロや表のファイルを書き出して `\input` します(CSV の検査が通っても、手で書き写した数値は古いまま残るため)。
+原稿の数値と表は手で書かず、`result/tables/` の CSV からコードで LaTeX のマクロや表のファイルを書き出して `\input` します(CSV の検査が通っても、手で書き写した数値は古いまま残るため)。本文の数値は `scripts/make_numbers.py` に1つずつ登録し(どの CSV のどの行・列を、どう丸めるか)、`make numbers` で `draft/tables/numbers.tex` のマクロにして、本文では `\Name{}` と書きます。丸めは10進の四捨五入で、ちょうど半分の値や見つからない行は止まります。CSV を直したら `make paper`(数値の生成と PDF の作成)を実行し、`numbers.tex` も CSV と一緒にコミットします(古いままだとテストが落ちます)。`result/tables/` の CSV はコミットします。
+
+コードで `result/figures/` へ昇格した図は、原稿がそこから直接読みます(`\graphicspath`)。`draft/figures/` には手で作った図(模式図など)だけを置きます。
 
 `draft/main.tex`・`draft/supplementary.tex` は見出しのみの雛形です。luatexja + 原ノ味フォントを読み込んでおり、日本語でも執筆できます。
 

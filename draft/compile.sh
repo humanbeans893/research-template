@@ -10,6 +10,11 @@
 #   bash draft/compile.sh            # draft/main.pdf and draft/supplementary.pdf
 #   bash draft/compile.sh --review   # the manuscript with line numbers and double
 #                                    # spacing, as draft/main_review.pdf
+#
+# After result/tables/*.csv change, run `make numbers` (in the container) first,
+# or `make paper` for both. The lualatex transcripts go to draft/build/<job>.log
+# and only errors are printed. The script exits non-zero when a citation or a
+# reference is still undefined, after writing the PDFs.
 set -euo pipefail
 
 draft_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -58,17 +63,29 @@ cites() {
   return 1
 }
 
+# run_lualatex <jobname> <source>: one pass, with its transcript in the log
+# only. On an error, print the file:line messages from the log and stop.
+run_lualatex() {
+  local job="$1" source="$2"
+  if ! lualatex -interaction=nonstopmode -halt-on-error -file-line-error \
+      -output-directory="${build_dir}" -jobname="${job}" "${source}" > /dev/null; then
+    echo "lualatex failed on ${job} (${build_dir}/${job}.log):" >&2
+    grep -E -A 3 '^[^ ]+:[0-9]+: |^! ' "${build_dir}/${job}.log" >&2 || tail -n 30 "${build_dir}/${job}.log" >&2
+    exit 1
+  fi
+}
+
 # build <jobname> <source>: lualatex, BibTeX if the document has a
 # bibliography and cites something, then lualatex twice to settle citations
 # and cross-references. BibTeX stops with an error on a bibliography that
 # nothing cites yet, as in a fresh project.
 build() {
   local job="$1" source="$2"
-  lualatex -interaction=nonstopmode -halt-on-error \
-    -output-directory="${build_dir}" -jobname="${job}" "${source}"
+  echo "Building ${job}"
+  run_lualatex "${job}" "${source}"
   if grep -q '\\bibdata' "${build_dir}/${job}.aux" && cites "${build_dir}/${job}.aux"; then
     # BibTeX exits 1 for warnings (an empty field, for example) and 2 or more
-    # for errors. Warnings are printed above; only errors stop the build.
+    # for errors. Warnings are printed; only errors stop the build.
     local status=0
     (cd "${build_dir}" && bibtex "${job}") || status=$?
     if [ "${status}" -gt 1 ]; then
@@ -79,16 +96,29 @@ build() {
     # print references the document no longer cites.
     rm -f "${build_dir}/${job}.bbl"
   fi
-  lualatex -interaction=nonstopmode -halt-on-error \
-    -output-directory="${build_dir}" -jobname="${job}" "${source}"
-  lualatex -interaction=nonstopmode -halt-on-error \
-    -output-directory="${build_dir}" -jobname="${job}" "${source}"
+  run_lualatex "${job}" "${source}"
+  run_lualatex "${job}" "${source}"
 }
 
+# unresolved <jobname>: TeX exits 0 when a citation or a reference is
+# undefined, so read what the last pass reported.
+unresolved() {
+  grep -E '(Citation|Reference) .*undefined|There were undefined' "${build_dir}/$1.log"
+}
+
+# Move each PDF as soon as it is built, so that a failure in the supplement
+# still leaves the manuscript.
 build main "${main_source}"
-build supplementary supplementary.tex
-
 mv "${build_dir}/main.pdf" "${draft_dir}/${main_output}"
+build supplementary supplementary.tex
 mv "${build_dir}/supplementary.pdf" "${draft_dir}/supplementary.pdf"
-
 echo "Built ${draft_dir}/${main_output} and ${draft_dir}/supplementary.pdf"
+
+status=0
+for job in main supplementary; do
+  if unresolved "${job}" >&2; then
+    echo "Undefined citations or references in ${job}: see ${build_dir}/${job}.log" >&2
+    status=1
+  fi
+done
+exit "${status}"
