@@ -4,7 +4,9 @@ Every experiment gets the same flags and the same record:
 
 - ``--smoke`` applies ``params.SMOKE``, writes to ``out/smoke/`` and never
   promotes, so a mistake surfaces in seconds and each stage can be timed.
-- A completed full run is not replaced without ``--overwrite``.
+- A completed full run is not replaced without ``--overwrite``. Before a run
+  starts, whatever an earlier run left in its output directory is cleared, so
+  no stale file sits beside the new outputs.
 - ``out/params_used.json`` records the status (running, completed or failed),
   seed, parameters, git commit and the list of uncommitted files, Python,
   uv.lock, stage timings and promoted files.
@@ -85,9 +87,14 @@ class Run:
     def log(self, text: str) -> None:
         print(f"    {text} ({self.elapsed():.1f} s)", flush=True)
 
+    def _inside(self, name: str) -> Path:
+        path, out_dir = (self.out_dir / name).resolve(), self.out_dir.resolve()
+        assert path != out_dir and path.is_relative_to(out_dir), f"{name!r} is not a file under {_relative(out_dir)}"
+        return path
+
     def out(self, name: str) -> Path:
-        """Path for an output under out/ (out/smoke/ with --smoke)."""
-        path = self.out_dir / name
+        """Path for an output under out/ (out/smoke/ with --smoke); a name that leaves it is refused."""
+        path = self._inside(name)
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
 
@@ -96,7 +103,7 @@ class Run:
         assert not self.smoke, "--smoke never writes to result/"
         dirty = self.record["git"]["dirty"]
         assert not dirty, f"Commit these, rerun, then promote: {dirty}"
-        source = self.out_dir / name
+        source = self._inside(name)
         assert source.is_file(), f"{_relative(source)} does not exist: write it through run.out() first"
         dest = Path(dest_dir) / Path(name).name
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -111,23 +118,29 @@ def start(run_file: str, params: ModuleType, argv: list[str] | None = None) -> I
     """Parse the flags, write out/params_used.json, and complete it when the run ends."""
     parser = argparse.ArgumentParser(description="Run this experiment (AGENTS.md, Experiments).")
     parser.add_argument("--smoke", action="store_true", help="apply params.SMOKE, write to out/smoke/, never promote")
-    parser.add_argument("--overwrite", action="store_true", help="replace a completed full run in out/")
+    parser.add_argument("--overwrite", action="store_true", help="replace a completed full run: out/ is cleared first")
     args = parser.parse_args(argv)
 
     exp_dir = Path(run_file).resolve().parent
     out_dir = exp_dir / "out" / "smoke" if args.smoke else exp_dir / "out"
     out_dir.mkdir(parents=True, exist_ok=True)
     record_path = out_dir / RECORD
-    if record_path.is_file():
-        previous = json.loads(record_path.read_text(encoding="utf-8"))
-        assert args.smoke or args.overwrite or previous.get("status") != "completed", (
+    previous = json.loads(record_path.read_text(encoding="utf-8")) if record_path.is_file() else {}
+    # What an earlier run left here. A full run leaves out/smoke/ to the smoke runs.
+    leftovers = sorted(p for p in out_dir.iterdir() if p.name not in ({".gitkeep"} if args.smoke else {".gitkeep", "smoke"}))
+    if not (args.smoke or args.overwrite):
+        assert previous.get("status") != "completed", (
             f"{_relative(out_dir)} holds a completed run from {previous.get('started')}: "
             "pass --overwrite to replace it, or start a new experiment to keep it"
         )
-        if previous.get("status") == "running":
-            # SIGKILL and out-of-memory kills never record their end, so this does not block.
-            print(f"[{exp_dir.name}] note: the run started {previous.get('started')} never finished; "
-                  "if it is still running, stop this one", flush=True)
+        assert previous or not leftovers, (
+            f"{_relative(out_dir)} holds files that no recorded run wrote: {[p.name for p in leftovers]}; "
+            "pass --overwrite to replace them"
+        )
+    if previous.get("status") == "running":
+        # SIGKILL and out-of-memory kills never record their end, so this does not block.
+        print(f"[{exp_dir.name}] note: the run started {previous.get('started')} never finished; "
+              "if it is still running, stop this one", flush=True)
 
     values = dict(params.PARAMS)
     if args.smoke:
@@ -135,6 +148,16 @@ def start(run_file: str, params: ModuleType, argv: list[str] | None = None) -> I
         unknown = sorted(set(params.SMOKE) - set(values))
         assert not unknown, f"params.SMOKE keys missing from params.PARAMS: {unknown}"
         values.update(params.SMOKE)
+
+    # Clear the earlier run, so that no stale output sits beside the new ones and
+    # gets cited or promoted as if this run had written it.
+    for path in leftovers:
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+    if leftovers:
+        print(f"[{exp_dir.name}] cleared {len(leftovers)} entries left in {_relative(out_dir)} by the earlier run", flush=True)
 
     lock = config.PROJECT_ROOT / "uv.lock"
     record = {

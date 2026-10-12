@@ -56,14 +56,49 @@ def test_a_completed_full_run_is_not_overwritten_without_the_flag(run_file) -> N
         pass
 
 
+def test_a_rerun_clears_what_the_earlier_run_left(run_file) -> None:
+    out = Path(run_file).parent / "out"
+    with experiment.start(run_file, PARAMS, []) as run:
+        run.out("kept.csv").write_text("1\n", encoding="utf-8")
+        run.out("figures/stale.png").write_text("x", encoding="utf-8")
+    with experiment.start(run_file, PARAMS, ["--smoke"]) as run:
+        run.out("smoke.csv").write_text("1\n", encoding="utf-8")
+    with experiment.start(run_file, PARAMS, ["--overwrite"]) as run:
+        assert not (out / "figures").exists() and not (out / "kept.csv").exists()
+        assert (out / "smoke" / "smoke.csv").is_file(), "a full run leaves out/smoke/ alone"
+        run.out("kept.csv").write_text("2\n", encoding="utf-8")
+    assert sorted(p.name for p in out.iterdir()) == ["kept.csv", experiment.RECORD, "smoke"]
+
+
+def test_files_no_recorded_run_wrote_need_the_flag(run_file) -> None:
+    out = Path(run_file).parent / "out"
+    out.mkdir()
+    (out / "manual.csv").write_text("1\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="no recorded run"):
+        with experiment.start(run_file, PARAMS, []):
+            pass
+    assert (out / "manual.csv").is_file()
+
+
+@pytest.mark.parametrize("name", ["../escape.csv", "/tmp/escape.csv", "."])
+def test_outputs_cannot_leave_the_output_directory(run_file, name: str) -> None:
+    with experiment.start(run_file, PARAMS, []) as run:
+        with pytest.raises(AssertionError, match="not a file under"):
+            run.out(name)
+        with pytest.raises(AssertionError, match="not a file under"):
+            run.promote(name)
+
+
 def test_a_failed_run_is_recorded_and_can_be_rerun(run_file) -> None:
     with pytest.raises(RuntimeError, match="boom"):
-        with experiment.start(run_file, PARAMS, []):
+        with experiment.start(run_file, PARAMS, []) as run:
+            run.out("partial.csv").write_text("1\n", encoding="utf-8")
             raise RuntimeError("boom")
     record = _record(run_file)
     assert record["status"] == "failed" and "boom" in record["error"]
     with experiment.start(run_file, PARAMS, []):
         pass
+    assert not (Path(run_file).parent / "out" / "partial.csv").exists(), "a retry clears the failed run's outputs"
     assert _record(run_file)["status"] == "completed"
 
 
