@@ -42,7 +42,7 @@ make experiment SLUG=<slug>
    docker compose exec research-template uv run python experiments/NNN_<slug>/run.py
    ```
 
-   `--smoke` は `params.SMOKE` の小さな値で `out/smoke/` に書き、`result/` へは昇格しません。完了した本実行は `--overwrite` なしでは上書きされません。実行の前に、前の実行が `out/` に残したものは消えます(古いファイルが新しい結果の横に残って、引用や昇格に紛れ込まないように)。`run.out()` は `out/` の外を指す名前を受け付けません。`out/params_used.json` に状態・シード・パラメータ・コミットと未コミットのファイルの一覧・各段の所要時間・昇格したファイルが残ります。未コミットのコードで走らせた実行は昇格できません。smoke の実行では `summary.md` も索引も直しません。
+   `--smoke` は `params.SMOKE` の小さな値で `out/smoke/` に書き、`result/` へは昇格しません。完了した本実行と、強制終了で「実行中」のまま残った実行は、`--overwrite` なしでは置き換えません(実行中の記録は、まだ動いている実行かもしれないため)。`run.promote()` は、実行が最後まで成功したときにだけ `result/` へ写します。実行の前に、前の実行が `out/` に残したものは消えます(古いファイルが新しい結果の横に残って、引用や昇格に紛れ込まないように)。`run.out()` は `out/` の外を指す名前を受け付けません。`out/params_used.json` に状態・シード・パラメータ・コミットと未コミットのファイルの一覧・各段の所要時間・昇格したファイルが残ります。未コミットのコードで走らせた実行は昇格できません。smoke の実行では `summary.md` も索引も直しません。
 4. `README.md` に結果と考察を日付をつけて追記し、`summary.md` の答え・主な数値・本実行と索引の行を同じコミットで直す。
 
 ## 状態の語

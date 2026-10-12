@@ -12,12 +12,16 @@ Every experiment gets the same flags and the same record:
   uv.lock, stage timings and promoted files.
 - SIGTERM and SIGHUP (kill, timeout, a batch scheduler's time limit) end the
   run through SystemExit, so it is recorded as failed. Only SIGKILL and an
-  out-of-memory kill leave the status at running.
+  out-of-memory kill leave the status at running; the next run then needs
+  ``--overwrite``, because a run recorded as running may still be alive.
+- ``run.promote()`` copies an output to result/ only when the run completes,
+  so result/ never holds part of a failed run.
 """
 
 import argparse
 import hashlib
 import json
+import os
 import platform
 import shutil
 import signal
@@ -74,6 +78,7 @@ class Run:
         self.name, self.out_dir, self.smoke = name, out_dir, smoke
         self.seed, self.params, self.record = seed, params, record
         self._start = time.perf_counter()
+        self._staged: list[tuple[Path, Path]] = []
 
     def elapsed(self) -> float:
         return time.perf_counter() - self._start
@@ -99,18 +104,38 @@ class Run:
         return path
 
     def promote(self, name: str, dest_dir: Path = config.TABLE_DIR) -> Path:
-        """Copy an output to result/ (tables by default). Do this last."""
+        """Copy an output to result/ (tables by default) when the run completes.
+
+        The arguments are checked now; nothing is copied if the run fails, so result/
+        never holds part of a failed run.
+        """
         assert not self.smoke, "--smoke never writes to result/"
         dirty = self.record["git"]["dirty"]
         assert not dirty, f"Commit these, rerun, then promote: {dirty}"
         source = self._inside(name)
         assert source.is_file(), f"{_relative(source)} does not exist: write it through run.out() first"
         dest = Path(dest_dir) / Path(name).name
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source, dest)
-        self.record["promoted"].append(_relative(dest))
-        self.log(f"promoted -> {_relative(dest)}")
+        assert dest not in [staged for _, staged in self._staged], f"{_relative(dest)} is promoted twice"
+        self._staged.append((source, dest))
         return dest
+
+    def _publish(self) -> None:
+        """Copy the promoted outputs: all to temporary files first, then each into place."""
+        parts = []
+        try:
+            for source, dest in self._staged:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                part = dest.with_name(dest.name + ".part")
+                shutil.copyfile(source, part)
+                parts.append((part, dest))
+        except BaseException:
+            for part, _ in parts:
+                part.unlink(missing_ok=True)
+            raise
+        for part, dest in parts:
+            os.replace(part, dest)
+            self.record["promoted"].append(_relative(dest))
+            self.log(f"promoted -> {_relative(dest)}")
 
 
 @contextmanager
@@ -118,7 +143,8 @@ def start(run_file: str, params: ModuleType, argv: list[str] | None = None) -> I
     """Parse the flags, write out/params_used.json, and complete it when the run ends."""
     parser = argparse.ArgumentParser(description="Run this experiment (AGENTS.md, Experiments).")
     parser.add_argument("--smoke", action="store_true", help="apply params.SMOKE, write to out/smoke/, never promote")
-    parser.add_argument("--overwrite", action="store_true", help="replace a completed full run: out/ is cleared first")
+    parser.add_argument("--overwrite", action="store_true",
+                        help="replace a completed run, or one recorded as running that died; out/ is cleared first")
     args = parser.parse_args(argv)
 
     exp_dir = Path(run_file).resolve().parent
@@ -137,10 +163,12 @@ def start(run_file: str, params: ModuleType, argv: list[str] | None = None) -> I
             f"{_relative(out_dir)} holds files that no recorded run wrote: {[p.name for p in leftovers]}; "
             "pass --overwrite to replace them"
         )
-    if previous.get("status") == "running":
-        # SIGKILL and out-of-memory kills never record their end, so this does not block.
-        print(f"[{exp_dir.name}] note: the run started {previous.get('started')} never finished; "
-              "if it is still running, stop this one", flush=True)
+    # A run recorded as running is either alive (a second run would clear its
+    # outputs) or was killed by SIGKILL or out of memory, which never record their end.
+    assert args.overwrite or previous.get("status") != "running", (
+        f"{_relative(out_dir)} has a run recorded as running since {previous.get('started')}: wait for it, "
+        "or, if it died (killed, out of memory), pass --overwrite"
+    )
 
     values = dict(params.PARAMS)
     if args.smoke:
@@ -186,6 +214,7 @@ def start(run_file: str, params: ModuleType, argv: list[str] | None = None) -> I
             previous_handlers[signum] = signal.signal(signum, lambda number, frame: sys.exit(128 + number))
     try:
         yield run
+        run._publish()
     except BaseException:
         record["status"], record["error"] = "failed", traceback.format_exc()
         raise

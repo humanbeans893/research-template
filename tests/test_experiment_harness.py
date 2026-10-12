@@ -102,6 +102,35 @@ def test_a_failed_run_is_recorded_and_can_be_rerun(run_file) -> None:
     assert _record(run_file)["status"] == "completed"
 
 
+def test_a_run_recorded_as_running_blocks_until_overwrite(run_file) -> None:
+    out = Path(run_file).parent / "out"
+    out.mkdir()
+    (out / experiment.RECORD).write_text(json.dumps({"status": "running", "started": "earlier"}), encoding="utf-8")
+    (out / "live.csv").write_text("1\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="recorded as running"):
+        with experiment.start(run_file, PARAMS, []):
+            pass
+    assert (out / "live.csv").is_file(), "the outputs of a run that may be alive are kept"
+    with experiment.start(run_file, PARAMS, ["--overwrite"]):
+        pass
+    assert _record(run_file)["status"] == "completed"
+
+
+def test_promotion_happens_only_when_the_run_completes(run_file, tmp_path) -> None:
+    tables = tmp_path / "tables"
+    with pytest.raises(RuntimeError):
+        with experiment.start(run_file, PARAMS, []) as run:
+            run.out("t.csv").write_text("a\n1\n", encoding="utf-8")
+            run.promote("t.csv", dest_dir=tables)
+            raise RuntimeError("a later stage fails")
+    assert not (tables / "t.csv").exists(), "a failed run must not reach result/"
+    with experiment.start(run_file, PARAMS, []) as run:
+        run.out("t.csv").write_text("a\n2\n", encoding="utf-8")
+        promoted = run.promote("t.csv", dest_dir=tables)
+        assert not promoted.exists(), "copied at completion, not at the call"
+    assert promoted.read_text(encoding="utf-8") == "a\n2\n" and not list(tables.glob("*.part"))
+
+
 def test_promotion_needs_committed_code(run_file, monkeypatch, tmp_path) -> None:
     with experiment.start(run_file, PARAMS, []) as run:
         run.out("t.csv").write_text("a\n1\n", encoding="utf-8")

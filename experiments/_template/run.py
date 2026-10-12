@@ -41,8 +41,8 @@ def main() -> None:
         run.stage("write outputs")
         pd.DataFrame({"n": [sample.size], "mean": [sample.mean()]}).to_csv(run.out("sample_mean.csv"), index=False)
         # A table or figure used outside this experiment (the manuscript, another
-        # experiment) is promoted in code, last. Refused under --smoke or with
-        # uncommitted code:
+        # experiment) is promoted in code, last. It is copied when the run completes,
+        # and refused under --smoke or with uncommitted code:
         # run.promote("sample_mean.csv")                        # -> result/tables/
         # run.promote("fig_x.png", dest_dir=config.FIGURE_DIR)  # -> result/figures/
 
