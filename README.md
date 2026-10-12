@@ -150,7 +150,7 @@ docker compose exec research-template uv run pytest
 - `tests/test_config.py` — 共有パスと設定
 - `tests/test_runtime_constraints.py` — Docker 内で動いていること、依存環境・キャッシュが作業ディレクトリの外にあること、生データが読み取り専用であること
 - `tests/test_manuscript_structure.py` — 原稿の引用キー・参照ラベル・読み込むファイルと図が存在すること。章立て・語数・文言・主張は固定しません(文章は著者が確かめます)
-- `tests/test_repo_structure.py` — 引き継ぎ用の文書があること、常に読む文書が150行以内であること、実験の名前と番号の重複、実験ディレクトリと `experiments/EXP_SUMMARY.md` の対応、各実験の `summary.md`(長さ・状態の語の一致・雛形の書き残し)、`out/` が Git に入らないこと、スキルを両方のエージェントが読み込めること
+- `tests/test_repo_structure.py` — 引き継ぎ用の文書があること、常に読む文書(STATE.md・索引・docs/guardrails.md)が字数の上限内で、索引の各行が短いこと、実験の名前と番号の重複、実験ディレクトリと `experiments/EXP_SUMMARY.md` の対応、各実験の `summary.md`(長さ・状態の語の一致・雛形の書き残し)、`out/` が Git に入らないこと、スキルを両方のエージェントが読み込めること
 - `tests/test_experiment_harness.py` — 実験の雛形が動き、自分の `out/` だけに書くこと。smoke・上書き防止・昇格の規則
 - `tests/test_new_experiment.py` — `make experiment` の番号・雛形の埋め込み・索引の行
 
@@ -253,8 +253,9 @@ docker compose exec research-template uv run python experiments/NNN_<slug>/run.p
 | `README.md` | 日本語 | 人間向けの入口(方針・手順・コマンド) | 構成やワークフローの変更時に `AGENTS.md` と**同時に**更新する |
 | `AGENTS.md` | 英語 | エージェント向け指示の**正典** | 運用ルールの変更は必ずここに書く |
 | `CLAUDE.md` | — | `See @AGENTS.md` の**ポインタのみ** | **内容を追加しない**。編集は常に `AGENTS.md` へ |
-| `STATE.md` | 日本語 | 運用状態の単一ページ(フェーズ、実行中のジョブ、決定、次の作業) | 状態が変わったらその場で。セッションの終わりと長時間ジョブの投入前は `write-handoff` スキルで。150行以内 |
-| `experiments/EXP_SUMMARY.md` | 日本語 | 全実験の索引と状態(撤回を含む) | 実験の作成時に1行足し、状態や結論が変わったら直す。状態の語は `summary.md` と同じにする。150行以内 |
+| `STATE.md` | 日本語 | 運用状態の単一ページ(フェーズ、実行中のジョブ、決定、次の作業) | 状態が変わったらその場で。タスクの完了を報告する前と長時間ジョブの投入前は `write-handoff` スキルで更新してコミットする。字数の上限はテストが検査する |
+| `experiments/EXP_SUMMARY.md` | 日本語 | 全実験の索引と状態(撤回を含む) | 実験の作成時に1行足し、状態や結論が変わったら直す。状態の語は `summary.md` と同じにする。1行は短く、字数の上限はテストが検査する |
+| `docs/guardrails.md` | 日本語 | 撤回した主張と、繰り返さない失敗(1件1行) | 起きたらその場で。毎セッション読むので字数の上限をテストが検査する |
 | `docs/` | 日本語 | 研究ログ・意思決定記録など人間向け文書の蓄積場所 | 随時追記。使い方は [`docs/README.md`](docs/README.md) |
 | `experiments/README.md` | 日本語 | 実験の規約(`AGENTS.md` の Experiments の日本語版) | 実験の規約を変えたら `AGENTS.md` と同じ編集で直す |
 | `experiments/*/summary.md` | 日本語 | その実験の今の結論(状態・答え・言えないこと・主な数値と出所) | 作成時に問いと判定の規則、本実行の後に答え。結論が変わったら書き直す |
@@ -279,5 +280,6 @@ docker compose exec research-template uv run python experiments/NNN_<slug>/run.p
 
 Claude Code は `.claude/skills/`、Codex は `.agents/skills/` からスキルを読み込みます。どちらも先頭に YAML の見出し(`name`・`description`)が要ります。見出しの無いスキルを Codex は読み込みません。
 
-- **`write-handoff`**(Claude Code・Codex) — セッションの終わりや長時間ジョブの投入前に `STATE.md` を更新し、次のセッションが `STATE.md` だけで再開できる状態にします。2つのディレクトリに同じ内容で置きます(テストが一致を検査します)。
-- **`/session-save`**(Claude Code) — セッションでの作業内容をメモリと `.claude/sessions/` 以下の Markdown ログに保存します。
+- **`write-handoff`**(Claude Code・Codex) — タスクの完了を報告する前や長時間ジョブの投入前に `STATE.md` を更新してコミットし、次のセッションが `STATE.md` を入口にファイルだけで再開できる状態にします。2つのディレクトリに同じ内容で置きます(テストが一致を検査します)。
+
+エージェントのメモリ(Claude Code の自動メモリ、Codex のメモリ)は道具ごと・マシンごとで、もう一方のエージェントからは読めません。研究の状態・結果・決定はメモリに置かず、上の文書に書きます。

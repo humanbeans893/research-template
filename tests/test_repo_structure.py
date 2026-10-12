@@ -1,7 +1,7 @@
 """Checks the handoff structure that lets Claude Code and Codex resume from files alone.
 
 See AGENTS.md (Session State and Handoff, Experiments). Only what can be enforced
-mechanically is checked: the documents exist, the always-read ones stay short,
+mechanically is checked: the documents exist, the always-read ones stay within their budgets,
 every experiment directory is named and numbered once and matches the index, each
 has a README.md and a short summary.md whose status word agrees with the index,
 experiment outputs stay out of git, and both agents can load the skills.
@@ -26,7 +26,10 @@ HANDOFF_DOCUMENTS = (
     "docs/ideas.md",
     "docs/launch-checklist.md",
 )
-ALWAYS_READ = ("STATE.md", "experiments/EXP_SUMMARY.md")
+# Character budgets of the files read at the start of every session (AGENTS.md,
+# Session State and Handoff). Characters, not lines: long lines defeat a line count.
+ALWAYS_READ_BUDGETS = {"STATE.md": 6_000, "experiments/EXP_SUMMARY.md": 15_000, "docs/guardrails.md": 8_000}
+INDEX_ROW_MAX_CHARS = 160
 # Claude Code reads .claude/skills/, Codex reads .agents/skills/.
 SKILL_DIRS = (ROOT / ".claude" / "skills", ROOT / ".agents" / "skills")
 
@@ -46,10 +49,16 @@ def test_claude_md_only_points_at_agents_md() -> None:
     assert text.strip() == "See @AGENTS.md", "CLAUDE.md is a pointer only; write rules in AGENTS.md"
 
 
-@pytest.mark.parametrize("relative", ALWAYS_READ)
-def test_always_read_documents_stay_short(relative: str) -> None:
-    n_lines = len((ROOT / relative).read_text(encoding="utf-8").splitlines())
-    assert n_lines <= 150, f"{relative} has {n_lines} lines; move older material out (AGENTS.md)"
+@pytest.mark.parametrize(("relative", "budget"), ALWAYS_READ_BUDGETS.items())
+def test_always_read_documents_stay_within_budget(relative: str, budget: int) -> None:
+    n_chars = len((ROOT / relative).read_text(encoding="utf-8"))
+    assert n_chars <= budget, f"{relative} has {n_chars} characters (budget {budget}): move detail out (AGENTS.md)"
+
+
+def test_index_rows_stay_one_line_each() -> None:
+    text = (EXPERIMENTS / "EXP_SUMMARY.md").read_text(encoding="utf-8")
+    long = [line[:20] for line in text.splitlines() if re.match(r"^\|\s*[0-9]+\s*\|", line) and len(line) > INDEX_ROW_MAX_CHARS]
+    assert not long, f"Index rows over {INDEX_ROW_MAX_CHARS} characters: {long}; move the detail to that summary.md"
 
 
 def experiment_dirs() -> list[Path]:

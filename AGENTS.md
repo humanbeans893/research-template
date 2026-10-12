@@ -65,17 +65,25 @@ session cut off at any point can be resumed from the files alone.
   - a failure not to repeat → `docs/guardrails.md`;
   - a new or rejected idea → `docs/ideas.md`;
   - a change of state (phase, a submitted or finished job, a decision) → `STATE.md`.
-- **At the end of a session and before any long or costly job**, update
-  `STATE.md` with the `write-handoff` skill. A running job needs how to check it
-  and where its result must be recorded.
+- **Before reporting a finished task** that changed results, decisions, jobs or
+  the next steps, **and before any long or costly job**, update `STATE.md` with
+  the `write-handoff` skill and commit it on the working branch, then report. You
+  cannot tell when a session will end, and a report in chat does not survive it.
+  A running job needs how to check it and where its result must be recorded.
 - `STATE.md` holds operational state only. Scientific narrative stays canonical
   in `docs/` research logs and decision records, each experiment's conclusion in
   its `summary.md` and its record in its `README.md` — link, do not duplicate.
 - Before any long or costly job, walk `docs/launch-checklist.md`. Log every such
   job in `experiments/JOBS.md` immediately at submission and again at completion.
-- Keep the always-read files, `STATE.md` and `experiments/EXP_SUMMARY.md`, within about
-  150 lines. Move older material to research logs; a bloated file costs context
-  every time it is read.
+- The always-read files (`STATE.md`, `experiments/EXP_SUMMARY.md`,
+  `docs/guardrails.md`) have character budgets, and each index row a length cap,
+  checked by `tests/test_repo_structure.py`. Long lines do not help: move detail
+  out instead — finished jobs to `experiments/JOBS.md`, older decisions to
+  decision records, an experiment's detail to its `summary.md`, the story behind
+  a guardrail to a research log.
+- Agent memory (Claude Code auto memory, Codex memories) is per tool and per
+  machine. Keep no project state, results or decisions there; when memory and a
+  file disagree, the file wins.
 - `tests/test_repo_structure.py` checks this structure mechanically.
 
 ### Single Source of Truth
@@ -86,7 +94,8 @@ two files.
 | Information | Canonical place |
 |---|---|
 | Current state and next actions | `STATE.md` |
-| Long or costly jobs | `experiments/JOBS.md` |
+| Running jobs and how to check them | `STATE.md` |
+| History of long or costly jobs (submission, commit, resources, result) | `experiments/JOBS.md` |
 | Experiment index and status word, including retractions | `experiments/EXP_SUMMARY.md` (each `summary.md` repeats the status word; a test keeps them equal) |
 | One experiment's current conclusion: status, answer, what it cannot show, key numbers with their source, the full run | `experiments/NNN_<slug>/summary.md` |
 | One experiment's record: purpose, method, each run, discussion, dated corrections | `experiments/NNN_<slug>/README.md` |
