@@ -1,8 +1,11 @@
-"""Parameters for NNN_<slug>. Every value that defines this experiment lives here.
+"""Parameters for NNN_<slug>: every value that can change this experiment's result.
 
-run.py records SEED and PARAMS in out/params_used.json. Pin values here rather
-than reading them from config.py, so that a later edit of config.py cannot
-change what a finished experiment computes.
+That includes the data selection (which file, variant, period or subset), analysis
+windows, thresholds, model settings, the seed and, if the experiment draws figures,
+their settings (dpi, format, font). Pin them here; never read them from config.py
+(it holds only locations) or switch them with an environment variable, so that
+editing a shared file can never change a finished experiment. run.py records SEED
+and PARAMS in out/params_used.json.
 """
 
 SEED = 42

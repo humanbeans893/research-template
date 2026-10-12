@@ -108,7 +108,7 @@ research-template/
 ├── AGENTS.md              # エージェント向け指示の正典(英語)
 ├── CLAUDE.md              # AGENTS.md への参照のみ(内容を書かない)
 ├── LICENSE                # MIT License
-├── config.py              # 共有パス・図の設定(DPI 等)。乱数シードは各実験の params.py
+├── config.py              # 置き場所の定義だけ(ディレクトリとデータの場所)。結果を変えうる値は各実験の params.py
 ├── .env.example           # .env の雛形(UID/GID、HOST_DATA_DIR、GPU 用の COMPOSE_FILE)
 ├── Dockerfile
 ├── docker-compose.yml     # CPU のみのベース構成
@@ -151,7 +151,7 @@ docker compose exec research-template uv run pytest
 
 テストは、解析の正しさを担保するもの(既知の答えを持つ合成データでの推定、単位・分母・丸めの独立計算との照合、再現手順の誤入力停止など)と、システム上の制約を守るものに絞ります。初めから入っているのは次のものです。
 
-- `tests/test_config.py` — 共有パスと設定
+- `tests/test_config.py` — 置き場所の定義。`config.py` が場所(パス)だけを持ち、`DATA_ROOT` 以外の環境変数を読まないこと(共有の値を直して、完了した実験の結果が黙って変わるのを防ぐ)
 - `tests/test_runtime_constraints.py` — Docker 内で動いていること、依存環境・キャッシュが作業ディレクトリの外にあること、生データが読み取り専用であること
 - `tests/test_manuscript_structure.py` — 原稿の引用キー・参照ラベル・読み込むファイルと図が存在すること。章立て・語数・文言・主張は固定しません(文章は著者が確かめます)
 - `tests/test_repo_structure.py` — 引き継ぎ用の文書があること、常に読む文書(STATE.md・索引・docs/guardrails.md)が字数の上限内で、索引の各行が短いこと、実験の名前と番号の重複、実験ディレクトリと `experiments/EXP_SUMMARY.md` の対応、各実験の `summary.md`(長さ・状態の語の一致・雛形の書き残し)、`out/` が Git に入らないこと、スキルを両方のエージェントが読み込めること
