@@ -1,4 +1,4 @@
-.PHONY: lock build up up-gpu test lint down tex tex-review
+.PHONY: lock build up up-gpu test lint down tex tex-review experiment
 
 # Update uv.lock with uv in a throwaway container, without the project image
 # or a host Python environment. Needed after renaming the project in
@@ -30,3 +30,8 @@ tex:
 
 tex-review:
 	bash draft/compile.sh --review
+
+# New experiment: make experiment SLUG=<slug> (number, template copy, index row).
+experiment:
+	@test -n "$(SLUG)" || { echo "usage: make experiment SLUG=<slug>"; exit 1; }
+	docker compose exec research-template uv run python scripts/new_experiment.py "$(SLUG)"

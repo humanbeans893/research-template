@@ -1,16 +1,18 @@
-"""Parameters for this experiment.
+"""Parameters for NNN_<slug>. Every value that defines this experiment lives here.
 
-Keep every tunable value here so that run.py stays declarative. This module
-is imported by run.py *after* the project root is put on sys.path, so
-top-level imports (config, src) are available here.
+run.py records SEED and PARAMS in out/params_used.json. Pin values here rather
+than reading them from config.py, so that a later edit of config.py cannot
+change what a finished experiment computes.
 """
 
-import config
-
-SEED = config.RANDOM["default_seed"]
+SEED = 42
 
 PARAMS = {
-    # Add experiment parameters here, e.g.:
-    # "n_samples": 1_000,
-    # "threshold": 0.5,
+    "n_samples": 1_000,
+}
+
+# --smoke: the same code path on a small input, to fail in seconds and to time
+# each stage before the full run. Every key must exist in PARAMS.
+SMOKE = {
+    "n_samples": 10,
 }

@@ -1,6 +1,13 @@
-"""Experiment entrypoint. Run from the project root:
+"""NNN_<slug>: <one-line purpose>.
 
+Run from the project root, smoke first:
+
+    docker compose exec research-template uv run python experiments/NNN_<slug>/run.py --smoke
     docker compose exec research-template uv run python experiments/NNN_<slug>/run.py
+
+Stages run cheapest first and the slow part last. Each stage calls src/; move a
+stage into src/ (with a test) when it outgrows a screen or a second experiment
+needs it.
 """
 
 import sys
@@ -10,32 +17,34 @@ from pathlib import Path
 # this script's directory, not the project root, on sys.path. Do not remove.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import numpy as np  # noqa: E402
+import numpy as np
+import pandas as pd
 
-import config  # noqa: E402,F401  # shared paths and settings (config.RAW_DATA_DIR, config.FIGURE_DIR, ...)
-import params  # noqa: E402
-
-OUT_DIR = Path(__file__).resolve().parent / "out"
+import config  # noqa: F401  # shared paths (config.RAW_DATA_DIR, config.TABLE_DIR, ...)
+import params
+from src.utils import experiment
 
 
 def main() -> None:
-    OUT_DIR.mkdir(exist_ok=True)
-    rng = np.random.default_rng(params.SEED)
+    with experiment.start(__file__, params) as run:
+        p = run.params  # params.PARAMS, with params.SMOKE applied under --smoke
+        rng = np.random.default_rng(run.seed)
 
-    # TODO: implement the experiment.
-    #   - Reuse logic from src/ (add it there first if it is missing).
-    #   - Read inputs from config data dirs (config.RAW_DATA_DIR, ...).
-    #   - Write every output (figures, arrays, logs) under OUT_DIR.
-    #   - When a figure is adopted for the paper, copy it to
-    #     config.FIGURE_DIR here (in code), not by hand.
-    sample = rng.standard_normal(3)  # placeholder so the template runs end-to-end
+        run.stage("load and check inputs")
+        # Read inputs through config paths and loaders in src/, and check them
+        # here, before anything expensive.
 
-    # Record the exact parameters used, for reproducibility.
-    (OUT_DIR / "params_used.txt").write_text(
-        f"SEED = {params.SEED}\nPARAMS = {params.PARAMS}\nplaceholder_sample = {sample.tolist()}\n",
-        encoding="utf-8",
-    )
-    print(f"[{Path(__file__).resolve().parent.name}] done -> {OUT_DIR}")
+        run.stage("compute")
+        sample = rng.standard_normal(p["n_samples"])  # placeholder so the template runs end to end
+        run.log(f"{sample.size} samples")
+
+        run.stage("write outputs")
+        pd.DataFrame({"n": [sample.size], "mean": [sample.mean()]}).to_csv(run.out("sample_mean.csv"), index=False)
+        # A table or figure used outside this experiment (the manuscript, another
+        # experiment) is promoted in code, last. Refused under --smoke or with
+        # uncommitted code:
+        # run.promote("sample_mean.csv")                        # -> result/tables/
+        # run.promote("fig_x.png", dest_dir=config.FIGURE_DIR)  # -> result/figures/
 
 
 if __name__ == "__main__":

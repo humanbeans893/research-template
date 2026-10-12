@@ -19,10 +19,6 @@ FIGURE_DIR = RESULT_DIR / "figures"
 TABLE_DIR = RESULT_DIR / "tables"
 ANIMATION_DIR = RESULT_DIR / "animations"
 
-RANDOM = {
-    "default_seed": 42,
-}
-
 VISUALIZATION = {
     "dpi": 300,
     "format": "png",

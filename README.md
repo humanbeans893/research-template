@@ -88,8 +88,9 @@ research-template/
 │   └── analysis/          # 上記を組み合わせた高次の解析ワークフロー
 ├── scripts/               # 実行用エントリポイント(ロジックは持たせない)
 ├── experiments/           # 番号付き実験ディレクトリ(自己完結・試行錯誤の蓄積)
-│   ├── _template/         # 新しい実験の雛形(cp -r で複製して使う)
-│   ├── EXP_SUMMARY.md     # 実験の索引と状態(撤回を含む)
+│   ├── README.md          # 実験の規約(AGENTS.md の Experiments の日本語版)
+│   ├── _template/         # 新しい実験の雛形(summary.md・README.md・run.py・params.py・out/)
+│   ├── EXP_SUMMARY.md     # 全実験の索引と状態(撤回を含む)
 │   └── JOBS.md            # 長時間・高コストのジョブの台帳
 ├── tests/                 # pytest テストスイート
 ├── data/
@@ -108,7 +109,7 @@ research-template/
 ├── AGENTS.md              # エージェント向け指示の正典(英語)
 ├── CLAUDE.md              # AGENTS.md への参照のみ(内容を書かない)
 ├── LICENSE                # MIT License
-├── config.py              # 共有パス・乱数シード(42)・図の設定(DPI 等)
+├── config.py              # 共有パス・図の設定(DPI 等)。乱数シードは各実験の params.py
 ├── .env.example           # .env の雛形(UID/GID, DATA_ROOT, HOST_JUPYTER_PORT)
 ├── Dockerfile
 ├── docker-compose.yml     # CPU のみのベース構成
@@ -144,12 +145,14 @@ docker compose exec research-template uv add <package>
 docker compose exec research-template uv run pytest
 ```
 
-テストは、解析の正しさを担保するもの(既知の答えを持つ合成データでの推定、単位・分母・丸めの独立計算との照合、再現手順の誤入力停止など)と、システム上の制約を守るものに絞ります。初めから入っているのは次の4つです。
+テストは、解析の正しさを担保するもの(既知の答えを持つ合成データでの推定、単位・分母・丸めの独立計算との照合、再現手順の誤入力停止など)と、システム上の制約を守るものに絞ります。初めから入っているのは次のものです。
 
 - `tests/test_config.py` — 共有パスと設定
 - `tests/test_runtime_constraints.py` — Docker 内で動いていること、依存環境・キャッシュが作業ディレクトリの外にあること、生データが読み取り専用であること
 - `tests/test_manuscript_structure.py` — 原稿の引用キー・参照ラベル・読み込むファイルと図が存在すること。章立て・語数・文言・主張は固定しません(文章は著者が確かめます)
-- `tests/test_repo_structure.py` — 引き継ぎ用の文書があること、常に読む文書が150行以内であること、実験ディレクトリと `experiments/EXP_SUMMARY.md` の対応、スキルを両方のエージェントが読み込めること
+- `tests/test_repo_structure.py` — 引き継ぎ用の文書があること、常に読む文書が150行以内であること、実験の名前と番号の重複、実験ディレクトリと `experiments/EXP_SUMMARY.md` の対応、各実験の `summary.md`(長さ・状態の語の一致・雛形の書き残し)、`out/` が Git に入らないこと、スキルを両方のエージェントが読み込めること
+- `tests/test_experiment_harness.py` — 実験の雛形が動き、自分の `out/` だけに書くこと。smoke・上書き防止・昇格の規則
+- `tests/test_new_experiment.py` — `make experiment` の番号・雛形の埋め込み・索引の行
 
 ### Jupyter(任意)
 
@@ -187,28 +190,15 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 
 ## 実験の回し方
 
-試行錯誤の実験は `experiments/` 以下に番号付きディレクトリとして蓄積します。詳細な規約は [`experiments/README.md`](experiments/README.md) を参照してください。
+試行錯誤の実験は `experiments/` 以下に番号付きディレクトリとして蓄積します。各実験には、今の結論を短くまとめた `summary.md` と、経緯の記録 `README.md` を置きます。手順・状態の語・撤回のしかたは [`experiments/README.md`](experiments/README.md) にあります。
 
-1. **雛形をコピーし、索引に1行足す**(番号は既存の最大値 + 1):
+```bash
+make experiment SLUG=<slug>   # 番号を決め、雛形を複製し、索引に「進行中」の行を足す
+docker compose exec research-template uv run python experiments/NNN_<slug>/run.py --smoke   # 小さく通す
+docker compose exec research-template uv run python experiments/NNN_<slug>/run.py           # 本実行
+```
 
-   ```bash
-   cp -r experiments/_template experiments/001_<slug>
-   ```
-
-   `experiments/EXP_SUMMARY.md` の表に番号・slug・一行の要約・状態を足します(足し忘れはテストが検出します)。
-
-2. **`params.py` を編集**してパラメータ(シード等)を決める。
-3. **`run.py` を実装**する。ロジックは `src/` の再利用コードを呼び出す形にし、冒頭の sys.path ブートストラップは残す。
-4. **実行する**:
-
-   ```bash
-   docker compose exec research-template uv run python experiments/001_<slug>/run.py
-   ```
-
-   出力(図・ログ・中間データ)はすべて `experiments/001_<slug>/out/` に保存されます(Git 管理外)。
-
-5. **結果と考察を `experiments/001_<slug>/README.md` に記録**し、`experiments/EXP_SUMMARY.md` の行も直す。結論を撤回・訂正したら、索引の状態欄と `docs/guardrails.md` に同時に書く(見出しだけ読むと撤回済みの結論が生きて見えるため)。
-6. **採用が決まった図は `result/figures/` へ昇格**する。手コピーではなく、`run.py` の最終処理または `scripts/` のスクリプトでコードとしてコピー・再出力する。
+出力はすべて各実験の `out/` に入り(Git 管理外)、`out/params_used.json` に状態・シード・パラメータ・コミットと未コミットのコード・各段の所要時間が残ります。原稿や後の実験が使う表・図は、コード(`run.promote()`)で `result/` へ昇格させます。
 
 ## データの扱い
 
@@ -264,17 +254,19 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 | `AGENTS.md` | 英語 | エージェント向け指示の**正典** | 運用ルールの変更は必ずここに書く |
 | `CLAUDE.md` | — | `See @AGENTS.md` の**ポインタのみ** | **内容を追加しない**。編集は常に `AGENTS.md` へ |
 | `STATE.md` | 日本語 | 運用状態の単一ページ(フェーズ、実行中のジョブ、決定、次の作業) | 状態が変わったらその場で。セッションの終わりと長時間ジョブの投入前は `write-handoff` スキルで。150行以内 |
-| `experiments/EXP_SUMMARY.md` | 日本語 | 実験の索引と状態(撤回を含む) | 実験の作成時に1行足し、結論が変わったら直す。撤回は状態欄に必ず書く。150行以内 |
+| `experiments/EXP_SUMMARY.md` | 日本語 | 全実験の索引と状態(撤回を含む) | 実験の作成時に1行足し、状態や結論が変わったら直す。状態の語は `summary.md` と同じにする。150行以内 |
 | `docs/` | 日本語 | 研究ログ・意思決定記録など人間向け文書の蓄積場所 | 随時追記。使い方は [`docs/README.md`](docs/README.md) |
-| `experiments/*/README.md` | 日本語 | 各実験の目的・方法・結果・考察 | 実験の作成時と、意味のある実行のたびに追記 |
+| `experiments/README.md` | 日本語 | 実験の規約(`AGENTS.md` の Experiments の日本語版) | 実験の規約を変えたら `AGENTS.md` と同じ編集で直す |
+| `experiments/*/summary.md` | 日本語 | その実験の今の結論(状態・答え・言えないこと・主な数値と出所) | 作成時に問いと判定の規則、本実行の後に答え。結論が変わったら書き直す |
+| `experiments/*/README.md` | 日本語 | その実験の経緯の記録(目的・方法・結果・考察・訂正) | 意味のある実行のたびに日付をつけて追記する。古い記述は消さない |
 
 各情報の正は1箇所だけにし、同じ表を複数のファイルに持ちません(対応表は `AGENTS.md` の Single Source of Truth)。チャットの内容は、次のセッションにも、もう一方のエージェントにも引き継がれません。残す価値のある情報は、その場でファイルに書きます。
 
 **更新のトリガー:**
 
-- ディレクトリ構成・実行環境・ワークフロールールを変えたら、`README.md` と `AGENTS.md` をセットで更新する(片方だけ直して不整合を残さない)。
+- ディレクトリ構成・実行環境・ワークフロールールを変えたら、`README.md` と `AGENTS.md` をセットで更新する(片方だけ直して不整合を残さない)。実験の規約は `AGENTS.md` の Experiments と `experiments/README.md` をセットで直す。
 - 「なぜそうしたか」という判断や経緯は `docs/` に記録する。雛形は [`docs/templates/`](docs/templates/) にあります。
-- 主張を撤回したら、その場で `docs/guardrails.md` と `experiments/EXP_SUMMARY.md` の状態欄に書く。
+- 結論を撤回・訂正・置き換えしたら、`experiments/README.md` の手順で、同じコミットに反映する。
 - 日本語の文書では、日本語で自然に書ける一般語を不必要に英語で書かない(コードの識別子と正式名称は除く)。日本語と英語が頻繁に混ざる文体を避ける。
 
 ## ライセンス

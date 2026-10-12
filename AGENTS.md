@@ -20,8 +20,12 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 
 # Run Python via Docker
 docker compose exec research-template uv run python <script.py>
-docker compose exec research-template uv run python experiments/NNN_<slug>/run.py
 docker compose exec research-template uv run pytest
+
+# Experiments: create one, run it small first, then in full
+make experiment SLUG=<slug>
+docker compose exec research-template uv run python experiments/NNN_<slug>/run.py --smoke
+docker compose exec research-template uv run python experiments/NNN_<slug>/run.py
 
 # Add packages via Docker, then rebake the image so it keeps the change
 docker compose exec research-template uv add <package>
@@ -48,18 +52,25 @@ session cut off at any point can be resumed from the files alone.
   retracted), then `docs/guardrails.md` (failures not to repeat). Check the
   running jobs in `STATE.md` before starting anything, so a job left by the
   previous session is not ignored or run twice.
+- **Before building on or citing an experiment**, read its
+  `experiments/NNN_<slug>/summary.md` (status, answer, what it cannot show, key
+  numbers and their source). Open its `README.md` only to reproduce, extend or
+  audit the method.
 - **While working**, record immediately, not "later":
-  - experiment results → that experiment's `README.md` and its row in `experiments/EXP_SUMMARY.md`;
-  - a retracted claim or a failure not to repeat → `docs/guardrails.md`, and the
-    status column of `experiments/EXP_SUMMARY.md` in the same edit;
+  - experiment results → that experiment's `summary.md` (answer, key numbers with
+    their source, the full run) and `README.md` (the dated record), and its row in
+    `experiments/EXP_SUMMARY.md`, in the same commit;
+  - a retracted, corrected or superseded result → the procedure in Experiments ›
+    Status and Retraction, in one commit;
+  - a failure not to repeat → `docs/guardrails.md`;
   - a new or rejected idea → `docs/ideas.md`;
   - a change of state (phase, a submitted or finished job, a decision) → `STATE.md`.
 - **At the end of a session and before any long or costly job**, update
   `STATE.md` with the `write-handoff` skill. A running job needs how to check it
   and where its result must be recorded.
 - `STATE.md` holds operational state only. Scientific narrative stays canonical
-  in `docs/` research logs and decision records, and per-experiment results in
-  `experiments/NNN_<slug>/README.md` — link, do not duplicate.
+  in `docs/` research logs and decision records, each experiment's conclusion in
+  its `summary.md` and its record in its `README.md` — link, do not duplicate.
 - Before any long or costly job, walk `docs/launch-checklist.md`. Log every such
   job in `experiments/JOBS.md` immediately at submission and again at completion.
 - Keep the always-read files, `STATE.md` and `experiments/EXP_SUMMARY.md`, within about
@@ -76,8 +87,9 @@ two files.
 |---|---|
 | Current state and next actions | `STATE.md` |
 | Long or costly jobs | `experiments/JOBS.md` |
-| Experiment index and status, including retractions | `experiments/EXP_SUMMARY.md` |
-| Experiment details (purpose, method, results, discussion) | `experiments/NNN_<slug>/README.md` |
+| Experiment index and status word, including retractions | `experiments/EXP_SUMMARY.md` (each `summary.md` repeats the status word; a test keeps them equal) |
+| One experiment's current conclusion: status, answer, what it cannot show, key numbers with their source, the full run | `experiments/NNN_<slug>/summary.md` |
+| One experiment's record: purpose, method, each run, discussion, dated corrections | `experiments/NNN_<slug>/README.md` |
 | Retracted claims and failures not to repeat | `docs/guardrails.md` |
 | Promising and rejected ideas | `docs/ideas.md` |
 | Rationale and history | `docs/` research logs and decision records |
@@ -97,7 +109,7 @@ This is a reusable research project template for analysis code, local data, gene
 - `data/processed/` — Analysis-ready derived data.
 - `src/` — Reusable project code.
 - `scripts/` — Execution scripts and one-off command entrypoints.
-- `experiments/` — Numbered self-contained experiment directories (`NNN_<slug>/`). Copy `experiments/_template/` to start one; `experiments/EXP_SUMMARY.md` indexes them and `experiments/JOBS.md` logs long or costly jobs. See the Experiments section and `experiments/README.md`.
+- `experiments/` — Numbered self-contained experiment directories (`NNN_<slug>/`); `experiments/EXP_SUMMARY.md` indexes them and `experiments/JOBS.md` logs long or costly jobs. See the Experiments section.
 - `result/` — Generated figures, tables, and analysis outputs.
 - `draft/` — Manuscript, supplementary material, references, and figure assets.
 - `docs/` — Human-facing project documentation in Japanese (research logs, decision records); see `docs/README.md`.
@@ -151,24 +163,35 @@ This is a reusable research project template for analysis code, local data, gene
 
 ## Experiments
 
-Iterative experiments live under `experiments/`, one numbered directory per experiment.
+Iterative experiments live under `experiments/`, one numbered directory per experiment. `experiments/README.md` is the Japanese version of this section; change both in the same edit.
 
 ### Structure
 
-- Name: `NNN_<slug>` (zero-padded sequence, e.g. `001_baseline_fit`); use the next unused number.
-- Start a new experiment with `cp -r experiments/_template experiments/NNN_<slug>`.
-- Each experiment is self-contained: `README.md` (purpose/method/results/notes), `run.py` (entrypoint), `params.py` (parameters), `out/` (all outputs).
-- Run with `docker compose exec research-template uv run python experiments/NNN_<slug>/run.py`.
+- Name: `NNN_<slug>`, three digits and a lower_snake_case slug (e.g. `001_baseline_fit`). The number is the highest one in use plus one.
+- Create one with `make experiment SLUG=<slug>`: it picks the number, copies `experiments/_template/`, fills in `NNN_<slug>` and the date, and adds the index row. Doing the same by hand after `cp -r experiments/_template experiments/NNN_<slug>` also works.
+- Each experiment is self-contained:
+  - `summary.md` — its current conclusion: status, question and decision rule, answer and what it cannot show, key numbers with their source, the full run. Kept short (the test sets the limit) and rewritten whenever the conclusion changes.
+  - `README.md` — the dated record: purpose, method, each run, discussion, corrections. Append only.
+  - `run.py` (entrypoint), `params.py` (every value that defines the experiment, pinned there rather than read from `config.py`), `out/` (all outputs).
+- `run.py` goes through `src.utils.experiment.start()`. It gives `--smoke` (applies `params.SMOKE`, writes to `out/smoke/`, never promotes) and `--overwrite` (a completed full run is not replaced without it), prints each stage with its elapsed time, and writes `out/params_used.json` (status, seed, parameters, commit and uncommitted code, stage timings, promoted files). Extend that module rather than writing provenance or progress code in `run.py`.
+- Run `--smoke` first; its stage timings are the pilot that `docs/launch-checklist.md` asks for.
 - `run.py` begins with a sys.path bootstrap that makes `config` and `src` importable; keep it — the project is not installed as a package.
+
+### Status and Retraction
+
+- The index status cell and `summary.md`'s 状態 line start with the same word: 進行中 (no conclusion yet), 完了 (the answer stands), 中止 (stopped without a conclusion), 訂正 (partly corrected; the main conclusion stands), 撤回 (the main conclusion is withdrawn) or 置き換え (a later experiment answers the same question). A date and the experiment that shows it may follow, e.g. `撤回(2026-10-02、→ 025_threshold_check)`.
+- Write `summary.md`'s question and decision rule when you create the experiment, and commit them with `params.py` before the full run. Fill in the answer, key numbers and full run after the full run, in the same commit as the index row. A smoke run changes neither; a rerun with `--overwrite` updates both in the same commit.
+- To retract, correct or supersede a result, in one commit: rewrite the 状態 and 答え of `summary.md`, striking the withdrawn statement through rather than deleting it, and fill in its 訂正・撤回・置き換え line; start the index status cell with the same word; for 撤回, add a row to `docs/guardrails.md`. A heading that still reads as a live conclusion after the body retracted it misleads every later reader.
+- Never delete an experiment directory or its index row; mark an abandoned experiment 中止, so that no number is ever reused.
+- `tests/test_repo_structure.py` checks the names and numbers, the index, the size and status word of each `summary.md`, and that no template placeholder is left in a `summary.md` past 進行中.
 
 ### Rules
 
 - Everything an experiment produces goes into its own `out/`; `experiments/*/out/` is git-ignored and never committed.
-- Commit the experiment's code and README; update the experiment `README.md` with findings after each meaningful run.
-- When you create an experiment, add its row to `experiments/EXP_SUMMARY.md`. When its conclusion changes, update the row's one-line summary and status. When you retract or correct it, say so in the status column: a heading that still reads as a live conclusion after the body retracted it misleads every later reader. `tests/test_repo_structure.py` checks that the experiment directories and the index match.
-- Treat finished experiments as immutable: never change a past experiment's `run.py`/`params.py` to produce new results — start a new numbered experiment instead. Appending notes or fixing typos in its README is fine.
+- Treat finished experiments as immutable: never change a past experiment's `run.py`/`params.py` to produce new results — start a new numbered experiment instead. In its `README.md`, only append and fix typos; `summary.md` is the one file you rewrite.
 - When logic is needed by a second experiment, move it into `src/` and import it from both; never copy-paste between experiment directories.
-- Promote paper-ready figures to `result/figures/` via code (a final step in `run.py` or a script in `scripts/`), never by manual copying.
+- Never read another experiment's `out/` or import its `run.py`: `out/` is absent from a fresh clone and replaced by a rerun. Whatever a later experiment or the manuscript needs is promoted in code (`run.promote()` or a script in `scripts/`): small tables to `result/tables/` (committed), large data to `data/processed/`, figures to `result/figures/`. Never copy by hand.
+- A number in `summary.md` or `README.md` carries its source (CSV, row, column); when they disagree, the CSV wins.
 
 ### Write Experiments to Run Fast
 
@@ -256,7 +279,7 @@ Before writing a new function, class, or helper, inspect the existing project mo
 
 ### Reuse Procedure
 
-1. Search before writing: `rg -n "<concept-or-function-name>" src config.py scripts`.
+1. Search before writing: `rg -n "<concept-or-function-name>" src config.py scripts experiments`.
 2. Check nearby working examples before inventing a new calling pattern.
 3. If a reusable implementation is missing, add it to the appropriate shared module first.
 4. Keep script-local helpers small and task-specific.
@@ -298,7 +321,7 @@ Before writing a new function, class, or helper, inspect the existing project mo
 - Treat `result/` as generated output.
 - Prefer regenerating figures and tables from source code.
 - Generate the numbers and tables in the manuscript from the CSVs in `result/tables/`: write LaTeX macros or table files in code and `\input` them, instead of typing values into the `.tex` files. A test that passes on the CSV does not protect a number copied into the text by hand.
-- Avoid committing large generated artifacts unless the user explicitly asks for them.
+- Commit `result/tables/*.csv`: they are small and canonical for the manuscript. Avoid committing large generated artifacts (animations, figures of many MB) unless the user explicitly asks for them.
 
 ### Import Management
 

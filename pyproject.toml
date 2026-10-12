@@ -25,3 +25,11 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint.per-file-ignores]
+# Entry points put the project root on sys.path before importing config and src.
+"experiments/*/run.py" = ["E402"]
+"scripts/*.py" = ["E402"]

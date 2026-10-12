@@ -45,9 +45,3 @@ def test_data_root_honours_environment_override(monkeypatch, tmp_path):
     finally:
         monkeypatch.undo()
         importlib.reload(config)
-
-
-def test_parameter_dicts_have_expected_keys():
-    assert config.RANDOM["default_seed"] == 42
-    assert config.VISUALIZATION["dpi"] == 300
-    assert config.VISUALIZATION["format"] == "png"
