@@ -12,13 +12,16 @@ Every experiment gets the same flags and the same record:
   uv.lock, stage timings and promoted files.
 - SIGTERM and SIGHUP (kill, timeout, a batch scheduler's time limit) end the
   run through SystemExit, so it is recorded as failed. Only SIGKILL and an
-  out-of-memory kill leave the status at running; the next run then needs
-  ``--overwrite``, because a run recorded as running may still be alive.
+  out-of-memory kill leave the status at running.
+- One run at a time per output directory: a lock (out/.lock) is held for the
+  whole run and released by the kernel however the process ends, so a run
+  recorded as running whose lock is free is known to be dead.
 - ``run.promote()`` copies an output to result/ only when the run completes,
   so result/ never holds part of a failed run.
 """
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -39,6 +42,7 @@ from types import ModuleType
 import config
 
 RECORD = "params_used.json"
+LOCK = ".lock"
 # Code whose uncommitted changes make a run unreproducible, besides the
 # experiment's own *.py.
 CODE_PATHS = ("src", "config.py", "pyproject.toml", "uv.lock")
@@ -139,11 +143,13 @@ class Run:
             for source, dest in self._staged:
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 assert not dest.is_dir(), f"{_relative(dest)} is a directory"
-                part = dest.with_name(dest.name + ".part")
+                # Names of this process only, so that two runs promoting at once never
+                # take over each other's temporary files.
+                part = dest.with_name(f".{dest.name}.{os.getpid()}.part")
                 shutil.copyfile(source, part)
                 parts.append((part, dest))
             for part, dest in parts:
-                backup = dest.with_name(dest.name + ".previous") if dest.exists() else None
+                backup = dest.with_name(f".{dest.name}.{os.getpid()}.previous") if dest.exists() else None
                 if backup is not None:
                     os.replace(dest, backup)
                 replaced.append((dest, backup))
@@ -166,16 +172,27 @@ class Run:
 
 @contextmanager
 def start(run_file: str, params: ModuleType, argv: list[str] | None = None) -> Iterator[Run]:
-    """Parse the flags, write out/params_used.json, and complete it when the run ends."""
+    """Parse the flags, hold the output directory's lock, and keep out/params_used.json up to date."""
     parser = argparse.ArgumentParser(description="Run this experiment (AGENTS.md, Experiments).")
     parser.add_argument("--smoke", action="store_true", help="apply params.SMOKE, write to out/smoke/, never promote")
-    parser.add_argument("--overwrite", action="store_true",
-                        help="replace a completed run, or one recorded as running that died; out/ is cleared first")
+    parser.add_argument("--overwrite", action="store_true", help="replace a completed run; out/ is cleared first")
     args = parser.parse_args(argv)
 
     exp_dir = Path(run_file).resolve().parent
     out_dir = exp_dir / "out" / "smoke" if args.smoke else exp_dir / "out"
     out_dir.mkdir(parents=True, exist_ok=True)
+    # One run at a time per output directory. The kernel releases the lock when
+    # the process ends, however it ends, so a free lock means no run is alive here.
+    with open(out_dir / LOCK, "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise AssertionError(f"Another run is using {_relative(out_dir)}: wait for it to finish") from None
+        yield from _run(args, argv, exp_dir, out_dir, params)
+
+
+def _run(args: argparse.Namespace, argv: list[str] | None, exp_dir: Path, out_dir: Path,
+         params: ModuleType) -> Iterator[Run]:
     record_path = out_dir / RECORD
     previous = {}
     if record_path.is_file():
@@ -185,7 +202,8 @@ def start(run_file: str, params: ModuleType, argv: list[str] | None = None) -> I
             assert args.overwrite, f"{_relative(record_path)} is unreadable: if its run died, pass --overwrite"
             previous = {"status": "unreadable"}
     # What an earlier run left here. A full run leaves out/smoke/ to the smoke runs.
-    leftovers = sorted(p for p in out_dir.iterdir() if p.name not in ({".gitkeep"} if args.smoke else {".gitkeep", "smoke"}))
+    keep = {".gitkeep", LOCK} if args.smoke else {".gitkeep", LOCK, "smoke"}
+    leftovers = sorted(p for p in out_dir.iterdir() if p.name not in keep)
     if not (args.smoke or args.overwrite):
         assert previous.get("status") != "completed", (
             f"{_relative(out_dir)} holds a completed run from {previous.get('started')}: "
@@ -195,12 +213,10 @@ def start(run_file: str, params: ModuleType, argv: list[str] | None = None) -> I
             f"{_relative(out_dir)} holds files that no recorded run wrote: {[p.name for p in leftovers]}; "
             "pass --overwrite to replace them"
         )
-    # A run recorded as running is either alive (a second run would clear its
-    # outputs) or was killed by SIGKILL or out of memory, which never record their end.
-    assert args.overwrite or previous.get("status") != "running", (
-        f"{_relative(out_dir)} has a run recorded as running since {previous.get('started')}: wait for it, "
-        "or, if it died (killed, out of memory), pass --overwrite"
-    )
+    if previous.get("status") == "running":
+        # We hold the lock, so that run is not alive: SIGKILL or out of memory ended it.
+        print(f"[{exp_dir.name}] note: the run started {previous.get('started')} died without recording "
+              "its end (killed, out of memory); its outputs are cleared", flush=True)
 
     values = dict(params.PARAMS)
     if args.smoke:
@@ -220,7 +236,7 @@ def start(run_file: str, params: ModuleType, argv: list[str] | None = None) -> I
         print(f"[{exp_dir.name}] cleared {len(leftovers)} entries left in {_relative(out_dir)} by the earlier run", flush=True)
 
     git_paths = [*CODE_PATHS, f"{_relative(exp_dir)}/*.py"]
-    lock = config.PROJECT_ROOT / "uv.lock"
+    uv_lock = config.PROJECT_ROOT / "uv.lock"
     record = {
         "experiment": exp_dir.name,
         "status": "running",
@@ -231,7 +247,7 @@ def start(run_file: str, params: ModuleType, argv: list[str] | None = None) -> I
         "params": values,
         "git": git_state(git_paths),
         "python": platform.python_version(),
-        "uv_lock_sha256": hashlib.sha256(lock.read_bytes()).hexdigest() if lock.is_file() else None,
+        "uv_lock_sha256": hashlib.sha256(uv_lock.read_bytes()).hexdigest() if uv_lock.is_file() else None,
         "stages": [],
         "promoted": [],
     }

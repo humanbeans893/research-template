@@ -42,7 +42,9 @@ experiment: ensure-up ## New experiment: make experiment SLUG=<slug>
 numbers: ensure-up ## Write draft/tables/numbers.tex from result/tables/*.csv
 	docker compose exec $(SERVICE) uv run python scripts/make_numbers.py
 
-paper: numbers tex ## Numbers, then the PDFs
+paper: ## Numbers, then the PDFs (in this order, also under make -j)
+	$(MAKE) numbers
+	$(MAKE) tex
 
 tex: ## Build draft/main.pdf and draft/supplementary.pdf with host lualatex
 	bash draft/compile.sh

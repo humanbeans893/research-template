@@ -4,6 +4,7 @@ A run records what produced it, --smoke never touches the full run or result/,
 a completed run is not overwritten by accident, and promotion needs committed code.
 """
 
+import fcntl
 import json
 import shutil
 import signal
@@ -67,7 +68,7 @@ def test_a_rerun_clears_what_the_earlier_run_left(run_file) -> None:
         assert not (out / "figures").exists() and not (out / "kept.csv").exists()
         assert (out / "smoke" / "smoke.csv").is_file(), "a full run leaves out/smoke/ alone"
         run.out("kept.csv").write_text("2\n", encoding="utf-8")
-    assert sorted(p.name for p in out.iterdir()) == ["kept.csv", experiment.RECORD, "smoke"]
+    assert sorted(p.name for p in out.iterdir()) == [experiment.LOCK, "kept.csv", experiment.RECORD, "smoke"]
 
 
 def test_files_no_recorded_run_wrote_need_the_flag(run_file) -> None:
@@ -102,18 +103,27 @@ def test_a_failed_run_is_recorded_and_can_be_rerun(run_file) -> None:
     assert _record(run_file)["status"] == "completed"
 
 
-def test_a_run_recorded_as_running_blocks_until_overwrite(run_file) -> None:
+def test_a_dead_run_recorded_as_running_is_cleared(run_file) -> None:
+    # Its lock is free, so SIGKILL or out of memory ended it.
     out = Path(run_file).parent / "out"
     out.mkdir()
     (out / experiment.RECORD).write_text(json.dumps({"status": "running", "started": "earlier"}), encoding="utf-8")
-    (out / "live.csv").write_text("1\n", encoding="utf-8")
-    with pytest.raises(AssertionError, match="recorded as running"):
-        with experiment.start(run_file, PARAMS, []):
-            pass
-    assert (out / "live.csv").is_file(), "the outputs of a run that may be alive are kept"
-    with experiment.start(run_file, PARAMS, ["--overwrite"]):
-        pass
+    (out / "partial.csv").write_text("1\n", encoding="utf-8")
+    with experiment.start(run_file, PARAMS, []):
+        assert not (out / "partial.csv").exists()
     assert _record(run_file)["status"] == "completed"
+
+
+def test_a_live_run_holds_its_output_directory(run_file) -> None:
+    out = Path(run_file).parent / "out"
+    out.mkdir()
+    (out / "live.csv").write_text("1\n", encoding="utf-8")
+    with open(out / experiment.LOCK, "w") as other_run:
+        fcntl.flock(other_run, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(AssertionError, match="Another run"):
+            with experiment.start(run_file, PARAMS, ["--overwrite"]):
+                pass
+    assert (out / "live.csv").is_file(), "the outputs of a live run are kept"
 
 
 def test_promotion_happens_only_when_the_run_completes(run_file, tmp_path) -> None:
@@ -215,7 +225,7 @@ def test_promotion_is_all_or_none(run_file, monkeypatch, tmp_path) -> None:
     real_replace = experiment.os.replace
 
     def failing_replace(source, dest):
-        if Path(source).name == "b.csv.part":
+        if Path(source).name.startswith(".b.csv.") and Path(source).name.endswith(".part"):
             raise OSError("disk full")
         return real_replace(source, dest)
 
