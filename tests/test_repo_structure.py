@@ -15,13 +15,13 @@ HANDOFF_DOCUMENTS = (
     "AGENTS.md",
     "CLAUDE.md",
     "STATE.md",
-    "exp/EXP_SUMMARY.md",
-    "exp/JOBS.md",
+    "experiments/EXP_SUMMARY.md",
+    "experiments/JOBS.md",
     "docs/guardrails.md",
     "docs/ideas.md",
     "docs/launch-checklist.md",
 )
-ALWAYS_READ = ("STATE.md", "exp/EXP_SUMMARY.md")
+ALWAYS_READ = ("STATE.md", "experiments/EXP_SUMMARY.md")
 # Claude Code reads .claude/skills/, Codex reads .agents/skills/.
 SKILL_DIRS = (ROOT / ".claude" / "skills", ROOT / ".agents" / "skills")
 
@@ -45,13 +45,13 @@ def test_always_read_documents_stay_short(relative: str) -> None:
 def test_experiments_match_the_index_and_have_readmes() -> None:
     experiments = {
         path.name.split("_", 1)[0]: path
-        for path in (ROOT / "exp").iterdir()
+        for path in (ROOT / "experiments").iterdir()
         if path.is_dir() and re.match(r"^\d{3}_", path.name)
     }
-    index = (ROOT / "exp" / "EXP_SUMMARY.md").read_text(encoding="utf-8")
+    index = (ROOT / "experiments" / "EXP_SUMMARY.md").read_text(encoding="utf-8")
     listed = set(re.findall(r"^\| (\d{3}) \|", index, re.MULTILINE))
     assert set(experiments) == listed, (
-        f"Experiment directories and exp/EXP_SUMMARY.md differ: {sorted(set(experiments) ^ listed)}"
+        f"Experiment directories and experiments/EXP_SUMMARY.md differ: {sorted(set(experiments) ^ listed)}"
     )
     missing = sorted(path.name for path in experiments.values() if not (path / "README.md").is_file())
     assert not missing, f"Experiments without README.md: {missing}"

@@ -16,7 +16,7 @@ Claude Code と Codex を行き来するとき、チャットの文脈は引き�
 1. **`STATE.md` の変わった節をすべて更新する。**
    - Last updated(日時 + 誰が)、Phase、現在の焦点
    - 実行中・待ちのジョブ: **何か、どう確認するか、結果をどこに書くか**まで書く。
-     正式な台帳 `exp/JOBS.md` にも行があるか確かめる。
+     正式な台帳 `experiments/JOBS.md` にも行があるか確かめる。
      「確認方法」が無いジョブは、次のセッションが放置するか二重に走らせる
    - 直近の決定事項: 決めたことと**理由**
    - 未解決の問い: 次のセッションが考えるべきこと
@@ -25,14 +25,14 @@ Claude Code と Codex を行き来するとき、チャットの文脈は引き�
 2. **今回の成果が正しいファイルに入っているか確かめる。**
    正となる場所は `AGENTS.md` の Single Source of Truth の表にある(表はそこだけに置き、ここには写さない)。
    チャットにしか無いものがあれば、いま書く。特に次の3つ。
-   - 実験の結果 → その実験の `README.md` と `exp/EXP_SUMMARY.md` の行
-   - 撤回した主張・繰り返さない失敗 → `docs/guardrails.md` と `exp/EXP_SUMMARY.md` の状態欄
+   - 実験の結果 → その実験の `README.md` と `experiments/EXP_SUMMARY.md` の行
+   - 撤回した主張・繰り返さない失敗 → `docs/guardrails.md` と `experiments/EXP_SUMMARY.md` の状態欄
    - 新しい案・却下した案 → `docs/ideas.md`
 
 3. **経緯を残す価値があれば、`docs/` に研究ログを書く**(雛形は `docs/templates/research-log.md`)。
    分岐の多い調査、方針転換、長いデバッグのとき。恒久的な判断は意思決定記録にする。
 
-4. **`STATE.md` と `exp/EXP_SUMMARY.md` を150行以内に保つ。**
+4. **`STATE.md` と `experiments/EXP_SUMMARY.md` を150行以内に保つ。**
    古い決定は消すか、残す価値があれば研究ログ・意思決定記録へ移す。
 
 ## 確認
@@ -43,5 +43,5 @@ Claude Code と Codex を行き来するとき、チャットの文脈は引き�
 特に確認すること。
 
 - 実行中のジョブに「確認方法」と「結果の記録先」が書いてあるか
-- 撤回した主張が `docs/guardrails.md` と `exp/EXP_SUMMARY.md` の両方に反映されているか
+- 撤回した主張が `docs/guardrails.md` と `experiments/EXP_SUMMARY.md` の両方に反映されているか
 - Next Actions の P0 が、いま本当に最優先か

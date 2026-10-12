@@ -9,7 +9,7 @@
 
 ## 背景
 
-<なぜこの実験が必要か。先行する実験(`exp/NNN_...`)や決定(`docs/decision-NNN-...`)への参照。>
+<なぜこの実験が必要か。先行する実験(`experiments/NNN_...`)や決定(`docs/decision-NNN-...`)への参照。>
 
 ## 方法
 
@@ -17,7 +17,7 @@
 - 実行コマンド:
 
 ```bash
-docker compose exec research-template uv run python exp/NNN_<slug>/run.py
+docker compose exec research-template uv run python experiments/NNN_<slug>/run.py
 ```
 
 ## 結果

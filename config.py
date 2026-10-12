@@ -9,7 +9,7 @@ PROJECT_ROOT = Path(__file__).parent
 DATA_ROOT = Path(os.environ.get("DATA_ROOT", PROJECT_ROOT / "data" / "raw"))
 RESULT_DIR = PROJECT_ROOT / "result"
 DRAFT_DIR = PROJECT_ROOT / "draft"
-EXP_DIR = PROJECT_ROOT / "exp"
+EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
 
 RAW_DATA_DIR = DATA_ROOT
 INTERIM_DATA_DIR = PROJECT_ROOT / "data" / "interim"

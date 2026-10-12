@@ -1,6 +1,6 @@
 """Experiment entrypoint. Run from the project root:
 
-    docker compose exec research-template uv run python exp/NNN_<slug>/run.py
+    docker compose exec research-template uv run python experiments/NNN_<slug>/run.py
 """
 
 import sys

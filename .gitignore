@@ -15,9 +15,9 @@ data/processed/**
 # ============================
 # Experiment outputs
 # ============================
-exp/*/out/**
-!exp/*/out/
-!exp/*/out/.gitkeep
+experiments/*/out/**
+!experiments/*/out/
+!experiments/*/out/.gitkeep
 
 # Optional project-specific data locations
 /raw/
