@@ -16,7 +16,7 @@
 - [ ] worktree が clean で、意図した commit を checkout している
       (`pwd && git branch && git status`)。
 - [ ] 環境が固定されている(lockfile / コンテナイメージ / モジュールバージョン)。
-- [ ] 乱数 seed・設定一式・コミットと未コミットのコードが出力に記録される(実験なら `out/params_used.json`)。
+- [ ] 乱数 seed・設定一式・コミットと未コミットのファイルの一覧が出力に記録される(実験なら `out/params_used.json`)。
 
 ## 実行設計
 

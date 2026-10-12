@@ -59,7 +59,11 @@ def create(root: Path, slug: str, today: datetime.date) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("slug", help="lower_snake_case, e.g. baseline_fit")
-    target = create(ROOT, parser.parse_args().slug, datetime.date.today())
+    # The container clock is UTC; make passes the host's local date.
+    parser.add_argument("--date", type=datetime.date.fromisoformat, default=datetime.date.today(),
+                        help="date written into the new files, YYYY-MM-DD (default: today in the container)")
+    args = parser.parse_args()
+    target = create(ROOT, args.slug, args.date)
     print(f"Created {target.relative_to(ROOT)} and its index row.")
     print("Next: write 問い and 判定の規則 in summary.md, set params.py, commit both, then run --smoke.")
 

@@ -30,10 +30,22 @@ services:
       - .:/workspace
       # Raw data, read-only. HOST_DATA_DIR in .env points at data outside the
       # repository (an external disk, a shared server); the default is data/raw.
-      - ${HOST_DATA_DIR:-./data/raw}:/data:ro
+      # create_host_path: false makes a missing source (an unmounted disk, a
+      # typo) stop `docker compose up` instead of mounting an empty directory.
+      - type: bind
+        source: ${HOST_DATA_DIR:-./data/raw}
+        target: /data
+        read_only: true
+        bind:
+          create_host_path: false
       # The same raw data is also visible through `.:/workspace`. Overlay it
       # read-only there too, so it cannot be modified through either path.
-      - ${HOST_DATA_DIR:-./data/raw}:/workspace/data/raw:ro
+      - type: bind
+        source: ${HOST_DATA_DIR:-./data/raw}
+        target: /workspace/data/raw
+        read_only: true
+        bind:
+          create_host_path: false
     shm_size: "16g"
     dns:
       - 8.8.8.8

@@ -208,7 +208,7 @@ docker compose exec research-template uv run python experiments/NNN_<slug>/run.p
 docker compose exec research-template uv run python experiments/NNN_<slug>/run.py           # 本実行
 ```
 
-出力はすべて各実験の `out/` に入り(Git 管理外)、`out/params_used.json` に状態・シード・パラメータ・コミットと未コミットのコード・各段の所要時間が残ります。原稿や後の実験が使う表・図は、コード(`run.promote()`)で `result/` へ昇格させます。
+出力はすべて各実験の `out/` に入り(Git 管理外)、`out/params_used.json` に状態・シード・パラメータ・コミットと未コミットのファイルの一覧・各段の所要時間が残ります。原稿や後の実験が使う表・図は、コード(`run.promote()`)で `result/` へ昇格させます。
 
 ## データの扱い
 
@@ -262,7 +262,7 @@ docker compose exec research-template uv run python experiments/NNN_<slug>/run.p
 | `README.md` | 日本語 | 人間向けの入口(方針・手順・コマンド) | 構成やワークフローの変更時に `AGENTS.md` と**同時に**更新する |
 | `AGENTS.md` | 英語 | エージェント向け指示の**正典** | 運用ルールの変更は必ずここに書く |
 | `CLAUDE.md` | — | `See @AGENTS.md` の**ポインタのみ** | **内容を追加しない**。編集は常に `AGENTS.md` へ |
-| `STATE.md` | 日本語 | 運用状態の単一ページ(フェーズ、実行中のジョブ、決定、次の作業) | 状態が変わったらその場で。タスクの完了を報告する前と長時間ジョブの投入前は `write-handoff` スキルで更新してコミットする。字数の上限はテストが検査する |
+| `STATE.md` | 日本語 | 運用状態の単一ページ(フェーズ、実行中のジョブ、決定、次の作業) | 状態が変わったらその場で。結果・決定・ジョブ・次の作業を変えたタスクの完了を報告する前と長時間ジョブの投入前は `write-handoff` スキルで更新してコミットする。字数の上限はテストが検査する |
 | `experiments/EXP_SUMMARY.md` | 日本語 | 全実験の索引と状態(撤回を含む) | 実験の作成時に1行足し、状態や結論が変わったら直す。状態の語は `summary.md` と同じにする。1行は短く、字数の上限はテストが検査する |
 | `docs/guardrails.md` | 日本語 | 撤回した主張と、繰り返さない失敗(1件1行) | 起きたらその場で。毎セッション読むので字数の上限をテストが検査する |
 | `docs/` | 日本語 | 研究ログ・意思決定記録など人間向け文書の蓄積場所 | 随時追記。使い方は [`docs/README.md`](docs/README.md) |
@@ -289,6 +289,6 @@ docker compose exec research-template uv run python experiments/NNN_<slug>/run.p
 
 Claude Code は `.claude/skills/`、Codex は `.agents/skills/` からスキルを読み込みます。どちらも先頭に YAML の見出し(`name`・`description`)が要ります。見出しの無いスキルを Codex は読み込みません。
 
-- **`write-handoff`**(Claude Code・Codex) — タスクの完了を報告する前や長時間ジョブの投入前に `STATE.md` を更新してコミットし、次のセッションが `STATE.md` を入口にファイルだけで再開できる状態にします。2つのディレクトリに同じ内容で置きます(テストが一致を検査します)。
+- **`write-handoff`**(Claude Code・Codex) — 結果・決定・ジョブ・次の作業を変えたタスクの完了を報告する前や、長時間ジョブの投入前に `STATE.md` を更新してコミットし、次のセッションが `STATE.md` を入口にファイルだけで再開できる状態にします。2つのディレクトリに同じ内容で置きます(テストが一致を検査します)。
 
 エージェントのメモリ(Claude Code の自動メモリ、Codex のメモリ)は道具ごと・マシンごとで、もう一方のエージェントからは読めません。研究の状態・結果・決定はメモリに置かず、上の文書に書きます。

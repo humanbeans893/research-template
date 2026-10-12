@@ -47,14 +47,15 @@ def read_cell(number: Number, table_dir: Path) -> str:
     path = (table_dir / number.csv).resolve()
     assert path.is_relative_to(table_dir.resolve()), f"{number.macro}: {number.csv} is outside {table_dir}"
     assert path.is_file(), f"{number.macro}: {path} is missing; run the analysis that writes it"
-    with path.open(newline="", encoding="utf-8") as handle:
+    # utf-8-sig also reads the byte-order mark that Excel and pandas(encoding="utf-8-sig") write.
+    with path.open(newline="", encoding="utf-8-sig") as handle:
         reader = csv.DictReader(handle)
         absent = [name for name in (*number.where, number.column) if name not in (reader.fieldnames or [])]
         assert not absent, f"{number.macro}: {number.csv} has no column {absent}"
         rows = [row for row in reader if all(row[key] == value for key, value in number.where.items())]
     assert len(rows) == 1, f"{number.macro}: {number.where} matches {len(rows)} rows of {number.csv}; need exactly one"
     value = rows[0][number.column]
-    assert value != "", f"{number.macro}: {number.csv} {number.where} {number.column} is empty"
+    assert value not in (None, ""), f"{number.macro}: {number.csv} {number.where} {number.column} is empty"
     return value
 
 

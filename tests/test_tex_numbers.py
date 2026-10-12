@@ -73,3 +73,9 @@ def test_committed_numbers_are_what_the_csvs_give() -> None:
     assert make_numbers.OUTPUT.read_text(encoding="utf-8") == render(make_numbers.NUMBERS, config.TABLE_DIR), (
         "draft/tables/numbers.tex is stale or was edited by hand: run make numbers and commit it"
     )
+
+
+def test_a_csv_with_a_byte_order_mark_is_read(tmp_path) -> None:
+    # Excel's "CSV UTF-8" and pandas' encoding="utf-8-sig" start the file with a BOM.
+    (tmp_path / "bom.csv").write_text("key,value\nb,3\n", encoding="utf-8-sig")
+    assert read_cell(Number("Bom", "bom.csv", {"key": "b"}, "value", "int"), tmp_path) == "3"

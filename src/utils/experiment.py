@@ -6,8 +6,11 @@ Every experiment gets the same flags and the same record:
   promotes, so a mistake surfaces in seconds and each stage can be timed.
 - A completed full run is not replaced without ``--overwrite``.
 - ``out/params_used.json`` records the status (running, completed or failed),
-  seed, parameters, git commit and uncommitted code, Python, uv.lock, stage
-  timings and promoted files.
+  seed, parameters, git commit and the list of uncommitted files, Python,
+  uv.lock, stage timings and promoted files.
+- SIGTERM and SIGHUP (kill, timeout, a batch scheduler's time limit) end the
+  run through SystemExit, so it is recorded as failed. Only SIGKILL and an
+  out-of-memory kill leave the status at running.
 """
 
 import argparse
@@ -15,8 +18,10 @@ import hashlib
 import json
 import platform
 import shutil
+import signal
 import subprocess
 import sys
+import threading
 import time
 import traceback
 from collections.abc import Iterator
@@ -120,7 +125,7 @@ def start(run_file: str, params: ModuleType, argv: list[str] | None = None) -> I
             "pass --overwrite to replace it, or start a new experiment to keep it"
         )
         if previous.get("status") == "running":
-            # A killed run (SIGKILL, out of memory) never records its end, so this does not block.
+            # SIGKILL and out-of-memory kills never record their end, so this does not block.
             print(f"[{exp_dir.name}] note: the run started {previous.get('started')} never finished; "
                   "if it is still running, stop this one", flush=True)
 
@@ -150,7 +155,12 @@ def start(run_file: str, params: ModuleType, argv: list[str] | None = None) -> I
     run = Run(exp_dir.name, out_dir, args.smoke, params.SEED, values, record)
     print(f"[{exp_dir.name}] {'smoke' if args.smoke else 'full'} run -> {_relative(out_dir)}", flush=True)
     if record["git"]["dirty"]:
-        run.log(f"uncommitted code is recorded, and this run cannot promote: {record['git']['dirty']}")
+        run.log(f"uncommitted files are listed in the record, and this run cannot promote: {record['git']['dirty']}")
+    # Turn SIGTERM and SIGHUP into SystemExit, so that a stopped run is recorded as failed.
+    previous_handlers = {}
+    if threading.current_thread() is threading.main_thread():
+        for signum in (signal.SIGTERM, signal.SIGHUP):
+            previous_handlers[signum] = signal.signal(signum, lambda number, frame: sys.exit(128 + number))
     try:
         yield run
     except BaseException:
@@ -159,6 +169,8 @@ def start(run_file: str, params: ModuleType, argv: list[str] | None = None) -> I
     else:
         record["status"] = "completed"
     finally:
+        for signum, handler in previous_handlers.items():
+            signal.signal(signum, handler)
         record["finished"], record["elapsed_s"] = _now(), round(run.elapsed(), 3)
         _write(record_path, record)
         print(f"[{exp_dir.name}] {record['status']} in {record['elapsed_s']:.1f} s", flush=True)

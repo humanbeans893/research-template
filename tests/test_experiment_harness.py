@@ -6,6 +6,7 @@ a completed run is not overwritten by accident, and promotion needs committed co
 
 import json
 import shutil
+import signal
 import subprocess
 import sys
 import types
@@ -85,12 +86,41 @@ def test_smoke_values_must_be_parameters(run_file) -> None:
             pass
 
 
-def test_the_template_runs_and_writes_only_to_its_out(tmp_path) -> None:
-    # Run a copy, so that nothing is written into the repository.
+def _project_copy(tmp_path: Path) -> Path:
+    # Runs happen in a copy, so that nothing is written into the repository.
     project = tmp_path / "project"
     shutil.copytree(ROOT / "src", project / "src", ignore=shutil.ignore_patterns("__pycache__"))
     for name in ("config.py", "uv.lock"):
         shutil.copy2(ROOT / name, project / name)
+    return project
+
+
+def test_a_run_stopped_by_sigterm_is_recorded_as_failed(tmp_path) -> None:
+    project = _project_copy(tmp_path)
+    target = project / "experiments" / "001_sleeper"
+    target.mkdir(parents=True)
+    (target / "run.py").write_text(
+        "import sys, time, types\n"
+        f"sys.path.insert(0, {str(project)!r})\n"
+        "from src.utils import experiment\n"
+        "params = types.SimpleNamespace(SEED=1, PARAMS={})\n"
+        "with experiment.start(__file__, params, []):\n"
+        "    print('ready', flush=True)\n"
+        "    time.sleep(60)\n",
+        encoding="utf-8",
+    )
+    process = subprocess.Popen([sys.executable, str(target / "run.py")], cwd=project, stdout=subprocess.PIPE, text=True)
+    for line in process.stdout:
+        if line.strip() == "ready":
+            break
+    process.send_signal(signal.SIGTERM)
+    assert process.wait(timeout=30) == 128 + signal.SIGTERM
+    record = json.loads((target / "out" / experiment.RECORD).read_text(encoding="utf-8"))
+    assert record["status"] == "failed" and "finished" in record
+
+
+def test_the_template_runs_and_writes_only_to_its_out(tmp_path) -> None:
+    project = _project_copy(tmp_path)
     target = project / "experiments" / "999_probe"
     shutil.copytree(ROOT / "experiments" / "_template", target, ignore=shutil.ignore_patterns("__pycache__", "smoke"))
     before = set(project.rglob("*"))

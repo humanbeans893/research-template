@@ -13,12 +13,12 @@ import pytest
 DRAFT = Path(__file__).resolve().parents[1] / "draft"
 DOCUMENTS = ("main.tex", "supplementary.tex")
 INPUT = re.compile(r"\\(?:input|include)\{([^{}]+)\}")
-# Every natbib/biblatex command with "cite" or "Cite" in its name takes keys,
-# except natbib's \citetext (free text) and the style setters \citestyle and
-# \setcitestyle.
+# Every natbib/biblatex command with "cite" in its name, or starting with "Cite",
+# takes keys, except natbib's \citetext (free text) and the style setters
+# \citestyle and \setcitestyle.
 CITE = re.compile(
     r"\\(?!(?:citetext|citestyle|setcitestyle)(?![a-zA-Z]))"
-    r"(?:[a-zA-Z]*[cC]ite[a-zA-Z]*|nocite)\*?(?:\s*\[[^\]]*\]){0,2}\s*\{([^{}]+)\}"
+    r"(?:[a-zA-Z]*cite[a-zA-Z]*|Cite[a-zA-Z]*|nocite)\*?(?:\s*\[[^\]]*\]){0,2}\s*\{([^{}]+)\}"
 )
 GRAPHICSPATH = re.compile(r"\\graphicspath\s*\{((?:\s*\{[^{}]*\})+)\s*\}")
 FIGURE_EXTENSIONS = (".pdf", ".png", ".jpg", ".jpeg", ".mps", ".jbig2", ".jb2")
@@ -108,6 +108,9 @@ def test_input_and_figure_files_exist(document) -> None:
     (r"\setcitestyle{square,numbers}", []),
     (r"\citestyle{nature}", []),
     (r"\citetext{free text}", []),
+    (r"\DeclareCiteCommand{\cite}{a}{b}{c}", []),
+    (r"\AtEveryCitekey{\clearfield{x}}", []),
+    (r"\Parencite{d}", ["d"]),
 ])
 def test_citation_commands_are_recognised(source: str, keys: list[str]) -> None:
     assert CITE.findall(source) == keys

@@ -37,7 +37,7 @@ check: lint test ## Run before every commit: ruff and pytest
 
 experiment: ensure-up ## New experiment: make experiment SLUG=<slug>
 	@test -n "$(SLUG)" || { echo "usage: make experiment SLUG=<slug>"; exit 1; }
-	docker compose exec $(SERVICE) uv run python scripts/new_experiment.py "$(SLUG)"
+	docker compose exec $(SERVICE) uv run python scripts/new_experiment.py "$(SLUG)" --date "$$(date +%F)"
 
 numbers: ensure-up ## Write draft/tables/numbers.tex from result/tables/*.csv
 	docker compose exec $(SERVICE) uv run python scripts/make_numbers.py
