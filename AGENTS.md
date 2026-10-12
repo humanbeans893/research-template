@@ -15,8 +15,8 @@ When writing Japanese, do not write ordinary words in English when natural Japan
 docker compose build
 docker compose up -d
 
-# Optional: start with NVIDIA GPU access
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+# Optional, GPU machines: set once in .env, so that every docker compose command keeps it
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.gpu.yml
 
 # Run Python via Docker
 docker compose exec research-template uv run python <script.py>
@@ -34,6 +34,9 @@ docker compose build && docker compose up -d
 # Compile the manuscript on the host (intermediates go to draft/build/)
 bash draft/compile.sh
 bash draft/compile.sh --review   # line-numbered, double-spaced draft/main_review.pdf
+
+# Before every commit: ruff and pytest in the container (make help lists the targets)
+make check
 
 # Pre-git check
 pwd && git branch && git status
@@ -147,8 +150,8 @@ This is a reusable research project template for analysis code, local data, gene
 
 ### Before Committing
 
-- Run the smallest useful verification for the change.
-- For Python changes, run targeted tests or the modified script via Docker.
+- Run the smallest useful verification for the change, and `make check` (ruff and every test, in the container) before committing code.
+- After editing `experiments/`, `STATE.md`, `docs/` or a skill, at least run `docker compose exec research-template uv run pytest tests/test_repo_structure.py`.
 - For manuscript changes, build with `bash draft/compile.sh` on the host.
 - Remove resolved TODO comments and local debug output.
 - Stage only files intentionally changed for the task.
@@ -230,14 +233,15 @@ experiment will be run many times.
 
 - Use Docker + `uv run` for normal script and test execution.
 - Use Docker + `uv add` for package installation.
-- Never create a project `.venv` or `venv` on the host, and never run `python -m venv`, `virtualenv`, `uv venv`, `uv sync`, `uv run` or a project `pip install` there. Git, file operations and Docker commands run on the host; project Python, uv and tests run in the container.
+- Never start `python` or `python3` on the host, not even for `--version`, `-c` or a heredoc that edits text (use the editor tool or `sed`). Never create a project `.venv` or `venv` there, and never run `python -m venv`, `virtualenv`, `uv venv`, `uv sync`, `uv run`, `uv add` or a project `pip install` there. Git, file operations and Docker commands run on the host; project Python, uv and tests run in the container. For Claude Code, `.claude/settings.json` denies these commands; Codex has no such file, so for Codex this rule is the only guard.
 - The project environment is `/opt/venv` inside the image (`UV_PROJECT_ENVIRONMENT`), baked from `uv.lock` at build time. `HOME` (`/home/app`) and the uv cache (`/opt/uv-cache`) are Docker named volumes, and `PYTHONPYCACHEPREFIX` keeps `__pycache__` under `HOME`. Nothing environment-related is written under `/workspace`, so no `.venv`, uv cache or `__pycache__` appears on the host.
 - `uv add` updates `pyproject.toml` and `uv.lock` on the host and the environment in the running container. Run `docker compose build` afterwards so the image keeps the change.
 - The build installs `uv.lock` frozen, so a stale lock stops it (`Missing workspace member` after renaming the project in `pyproject.toml`). Update the lock with `make lock`, which runs `uv lock` in a throwaway uv container, before building.
 - If you must enter the container interactively, use `docker compose exec research-template bash`, but prefer direct `docker compose exec ... uv run ...`.
-- Raw data is mounted read-only at `/data` and, through an overlay, at `/workspace/data/raw`, so it cannot be modified through either path.
-- GPU access is opt-in via the `docker-compose.gpu.yml` override; the base compose file runs CPU-only.
-- Copy `.env.example` to `.env` before the first `docker compose build` (sets `UID`/`GID`, optional `DATA_ROOT`).
+- Raw data (`data/raw/`, or `HOST_DATA_DIR` from `.env`) is mounted read-only at `/data` and, through an overlay, at `/workspace/data/raw`, so it cannot be modified through either path.
+- GPU access is opt-in: on a GPU machine set `COMPOSE_FILE=docker-compose.yml:docker-compose.gpu.yml` in `.env`. Passing `-f` to one command is not enough: the next plain `docker compose up -d` (for example after `uv add`) recreates the container without the GPU, with no error.
+- Copy `.env.example` to `.env` before the first `docker compose build` (sets `UID`/`GID`; optional `HOST_DATA_DIR`, `COMPOSE_FILE`, `COMPOSE_PROJECT_NAME`).
+- No port is published and the container does not restart by itself; `make` targets start it when needed. Start Jupyter on demand, on localhost only (README.md).
 - `uv.lock` is committed; after `uv add`/`uv remove`, commit the updated lockfile.
 
 ### LaTeX Compilation

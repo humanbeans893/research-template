@@ -37,7 +37,6 @@ git remote add origin <新プロジェクトの URL>
 | 対象 | 変更 | 理由 |
 |---|---|---|
 | `pyproject.toml` の `name`・`description` | **変更する** | uv プロジェクトの識別名 |
-| `docker-compose.yml` の `container_name`・`image` | **変更する** | ホスト全体で一意である必要があり、共有すると他プロジェクトと衝突する |
 | `docker-compose.yml` のサービスキー `research-template` | **変更しない** | サービス名は compose プロジェクト内スコープなので衝突しない。据え置けば README・`AGENTS.md` 内のすべてのコマンドがそのまま動く |
 | `README.md` のタイトル・冒頭説明 | **変更する** | プロジェクトの内容に合わせて書き換える |
 
@@ -54,7 +53,7 @@ cp .env.example .env
 id -u; id -g   # 出力に合わせて .env の UID / GID を設定
 ```
 
-他のプロジェクトとポートが衝突する場合は、`.env` で `HOST_JUPYTER_PORT` を変更してください(既定 8889)。
+生データをリポジトリの外(外付けディスクや共有サーバー)に置く場合は `.env` の `HOST_DATA_DIR`、GPU を使うマシンでは `COMPOSE_FILE` を設定します(`.env.example` の説明を参照)。
 
 ### 4. イメージをビルドし、コンテナを起動する
 
@@ -103,14 +102,14 @@ research-template/
 │   └── animations/        # 生成されたアニメーション・動画
 ├── draft/                 # 原稿(LuaLaTeX。compile.sh でビルド、luatexja で日本語執筆可)
 ├── docs/                  # 人間向けドキュメント(研究ログ・意思決定記録)
-├── .claude/               # Claude Code のスキル
+├── .claude/               # Claude Code のスキルと設定(settings.json がホストでの python・uv の実行を拒否)
 ├── .agents/               # Codex のスキル(write-handoff は .claude/skills/ と同じ内容)
 ├── STATE.md               # 運用状態の単一ページ(セッション開始時に最初に読む)
 ├── AGENTS.md              # エージェント向け指示の正典(英語)
 ├── CLAUDE.md              # AGENTS.md への参照のみ(内容を書かない)
 ├── LICENSE                # MIT License
 ├── config.py              # 共有パス・図の設定(DPI 等)。乱数シードは各実験の params.py
-├── .env.example           # .env の雛形(UID/GID, DATA_ROOT, HOST_JUPYTER_PORT)
+├── .env.example           # .env の雛形(UID/GID、HOST_DATA_DIR、GPU 用の COMPOSE_FILE)
 ├── Dockerfile
 ├── docker-compose.yml     # CPU のみのベース構成
 ├── docker-compose.gpu.yml # NVIDIA GPU 用オーバーライド
@@ -123,12 +122,14 @@ research-template/
 ### コンテナ操作
 
 ```bash
-docker compose build                            # 初回と、pyproject.toml・uv.lock を変えた後
-docker compose up -d                            # 初回起動・設定変更後の再作成
-docker compose start                            # 停止中のコンテナを再開
-docker compose stop                             # 停止
-docker compose exec research-template bash      # コンテナに入る(必要な場合のみ)
+make help                                       # よく使う操作の一覧
+docker compose build                            # 初回と、pyproject.toml・uv.lock を変えた後(make build)
+docker compose up -d                            # 起動・設定変更後の再作成(make up)
+docker compose down                             # 停止して削除(make down)
+docker compose exec research-template bash      # コンテナに入る(必要な場合のみ。make shell)
 ```
+
+コンテナは自動では再起動しません(再起動後は `make up`。`make` のテストなどは止まっていれば起動します)。ポートも公開しません。
 
 ### Python の実行とパッケージ管理
 
@@ -139,9 +140,12 @@ docker compose exec research-template uv add <package>
 
 `uv add` / `uv remove` の後は、`docker compose build` でイメージにも反映し、更新された `uv.lock` をコミットしてください。
 
+ホストで `python`・`python3`・`pip`・`uv` を直接実行しません(`--version` も含む)。Claude Code では、コミットしてある `.claude/settings.json` がこれらを拒否します。Codex には同じ仕組みがないため、`AGENTS.md` の規則で守ります。
+
 ### テスト
 
 ```bash
+make check                                      # ruff とすべてのテスト(コミット前に毎回)
 docker compose exec research-template uv run pytest
 ```
 
@@ -156,14 +160,15 @@ docker compose exec research-template uv run pytest
 
 ### Jupyter(任意)
 
-Jupyter は依存に含まれていません。使う場合は追加してから起動します。
+Jupyter は依存に含まれていません。使う場合は追加してから、必要なときだけ、このマシンからだけ見えるポートで起動します(ほかのプロジェクトとポートが重なったら 8889 を変える)。
 
 ```bash
 docker compose exec research-template uv add jupyterlab
-docker compose exec research-template uv run jupyter lab --ip 0.0.0.0 --port 8888 --no-browser
+docker compose build
+docker compose run --rm -p 127.0.0.1:8889:8888 research-template uv run jupyter lab --ip 0.0.0.0 --port 8888 --no-browser
 ```
 
-ホスト側からは `http://localhost:8889`(`.env` の `HOST_JUPYTER_PORT` で変更可)でアクセスします。
+ホスト側からは `http://localhost:8889` でアクセスします。
 
 ### 原稿(LuaLaTeX、ホストで実行)
 
@@ -182,11 +187,13 @@ bash draft/compile.sh --review   # 行番号とダブルスペース入りの dr
 
 ### GPU(任意)
 
-ベース構成は CPU のみです。NVIDIA GPU を使うマシンでは:
+ベース構成は CPU のみです。NVIDIA GPU を使うマシンでは、`.env` に次の1行を書きます。以後の `docker compose` はすべて GPU 込みの構成で動きます。
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+COMPOSE_FILE=docker-compose.yml:docker-compose.gpu.yml
 ```
+
+`-f docker-compose.gpu.yml` を1回だけ付けて起動すると、次に `docker compose up -d`(`uv add` の後など)を実行したとき、GPU のないコンテナに黙って作り直されます。
 
 ## 実験の回し方
 
@@ -202,8 +209,7 @@ docker compose exec research-template uv run python experiments/NNN_<slug>/run.p
 
 ## データの扱い
 
-- **コンテナ内**では、`docker-compose.yml` が `./data/raw` を `/data` に**読み取り専用**でマウントし、常に `DATA_ROOT=/data` を設定します。同じデータは作業ディレクトリ経由(`/workspace/data/raw`)でも見えるため、そこにも読み取り専用で重ね、どちらの経路からも書き換えられないようにしています。
-- **ホスト側**で `config.py` を使う場合は、`.env` の `DATA_ROOT`、未設定なら `./data/raw` にフォールバックします。
+- **コンテナ内**では、`docker-compose.yml` が `./data/raw`(`.env` の `HOST_DATA_DIR` を設定すればそのディレクトリ)を `/data` に**読み取り専用**でマウントし、常に `DATA_ROOT=/data` を設定します。コードは `config.RAW_DATA_DIR` から読みます。同じデータは作業ディレクトリ経由(`/workspace/data/raw`)でも見えるため、そこにも読み取り専用で重ね、どちらの経路からも書き換えられないようにしています。
 - 入力データは `data/raw/` に置きます。大容量ファイル(`.nc`, `.h5`, `.parquet` など)は `.gitignore` 済みで、Git には入りません。
 
 ## 文献

@@ -62,6 +62,7 @@ __pycache__/
 .cache/
 .local/
 .pytest_cache/
+.ruff_cache/
 
 # ============================
 # Heavy result artifacts
@@ -104,13 +105,14 @@ Thumbs.db
 # ============================
 *.log
 .claude/settings.local.json
+.claude/worktrees/
 # Codex project settings can carry API keys and other secrets.
 .codex/config.toml
 
 # ============================
 # Per-user shared memory
 # ============================
-memory
+/memory
 
 # ============================
 # LaTeX build artifacts

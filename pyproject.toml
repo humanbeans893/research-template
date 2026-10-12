@@ -25,6 +25,10 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+# Show why tests were skipped, and fail on a mistyped marker or setting.
+addopts = "-ra --strict-markers --strict-config"
+# Keep the cache off the bind-mounted repository (AGENTS.md, Environment Rules).
+cache_dir = "$HOME/.cache/pytest"
 
 [tool.ruff]
 target-version = "py311"
