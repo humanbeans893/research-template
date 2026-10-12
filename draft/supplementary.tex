@@ -13,6 +13,13 @@
 \usepackage{enumitem}
 \usepackage{hyperref}
 
+% Figures promoted by code to result/figures/ are read from there; draft/figures/
+% holds figures made by hand (schematics).
+\graphicspath{{figures/}{../result/figures/}}
+% Numbers in the text: macros that scripts/make_numbers.py writes from
+% result/tables/*.csv (make numbers). Never type a result into the text.
+\input{tables/numbers}
+
 \setlength{\abovecaptionskip}{0pt}
 \setlength{\belowcaptionskip}{0pt}
 

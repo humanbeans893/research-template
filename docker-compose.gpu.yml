@@ -1,5 +1,6 @@
-# NVIDIA GPU override. Usage:
-#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+# NVIDIA GPU override. Enable it once in .env, so that every docker compose
+# command keeps it (see .env.example):
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.gpu.yml
 services:
   research-template:
     deploy:

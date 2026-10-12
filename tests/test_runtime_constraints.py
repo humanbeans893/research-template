@@ -23,7 +23,7 @@ def test_python_runs_in_docker_without_a_host_virtualenv() -> None:
     assert not environment.is_relative_to(ROOT), environment
 
 
-@pytest.mark.parametrize("variable", ["HOME", "UV_CACHE_DIR", "MPLCONFIGDIR", "PYTHONPYCACHEPREFIX"])
+@pytest.mark.parametrize("variable", ["HOME", "UV_CACHE_DIR", "MPLCONFIGDIR", "PYTHONPYCACHEPREFIX", "RUFF_CACHE_DIR"])
 def test_runtime_state_stays_outside_the_source_mount(variable: str) -> None:
     assert variable in os.environ, f"{variable} is not set (see docker-compose.yml)"
     path = Path(os.environ[variable])

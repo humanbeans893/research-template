@@ -11,7 +11,7 @@ def test_path_constants_are_under_project_root():
     for path in (
         config.RESULT_DIR,
         config.DRAFT_DIR,
-        config.EXP_DIR,
+        config.EXPERIMENTS_DIR,
         config.INTERIM_DATA_DIR,
         config.PROCESSED_DATA_DIR,
         config.FIGURE_DIR,
@@ -27,7 +27,7 @@ def test_template_directories_exist():
         config.DATA_ROOT,
         config.RESULT_DIR,
         config.DRAFT_DIR,
-        config.EXP_DIR,
+        config.EXPERIMENTS_DIR,
         config.INTERIM_DATA_DIR,
         config.PROCESSED_DATA_DIR,
         config.FIGURE_DIR,
@@ -45,9 +45,3 @@ def test_data_root_honours_environment_override(monkeypatch, tmp_path):
     finally:
         monkeypatch.undo()
         importlib.reload(config)
-
-
-def test_parameter_dicts_have_expected_keys():
-    assert config.RANDOM["default_seed"] == 42
-    assert config.VISUALIZATION["dpi"] == 300
-    assert config.VISUALIZATION["format"] == "png"

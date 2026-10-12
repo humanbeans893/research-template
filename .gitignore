@@ -15,9 +15,9 @@ data/processed/**
 # ============================
 # Experiment outputs
 # ============================
-exp/*/out/**
-!exp/*/out/
-!exp/*/out/.gitkeep
+experiments/*/out/**
+!experiments/*/out/
+!experiments/*/out/.gitkeep
 
 # Optional project-specific data locations
 /raw/
@@ -62,6 +62,7 @@ __pycache__/
 .cache/
 .local/
 .pytest_cache/
+.ruff_cache/
 
 # ============================
 # Heavy result artifacts
@@ -104,14 +105,14 @@ Thumbs.db
 # ============================
 *.log
 .claude/settings.local.json
-.claude/sessions/
+.claude/worktrees/
 # Codex project settings can carry API keys and other secrets.
 .codex/config.toml
 
 # ============================
 # Per-user shared memory
 # ============================
-memory
+/memory
 
 # ============================
 # LaTeX build artifacts

@@ -14,24 +14,27 @@ When writing Japanese, do not write ordinary words in English when natural Japan
 # Build the image (bakes the locked dependencies into /opt/venv) and start it
 docker compose build
 docker compose up -d
-
-# Optional: start with NVIDIA GPU access
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+# GPU machines: set COMPOSE_FILE=docker-compose.yml:docker-compose.gpu.yml once in .env
 
 # Run Python via Docker
 docker compose exec research-template uv run python <script.py>
-docker compose exec research-template uv run python exp/NNN_<slug>/run.py
 docker compose exec research-template uv run pytest
+
+# Experiments: create one, run it small first, then in full
+make experiment SLUG=<slug>
+docker compose exec research-template uv run python experiments/NNN_<slug>/run.py --smoke
+docker compose exec research-template uv run python experiments/NNN_<slug>/run.py
 
 # Add packages via Docker, then rebake the image so it keeps the change
 docker compose exec research-template uv add <package>
 docker compose build && docker compose up -d
 
-# Compile the manuscript on the host (intermediates go to draft/build/)
-bash draft/compile.sh
+# Manuscript on the host: numbers from the CSVs, then the PDFs (draft/build/ holds the rest)
+make paper
 bash draft/compile.sh --review   # line-numbered, double-spaced draft/main_review.pdf
 
-# Pre-git check
+# Before every commit (ruff + pytest in the container; make help lists the targets), and before git
+make check
 pwd && git branch && git status
 ```
 
@@ -43,29 +46,32 @@ Chat context does not survive a new session or a switch between Claude Code and
 Codex. Write anything worth keeping into its file when it happens, so that a
 session cut off at any point can be resumed from the files alone.
 
-- **At the start**, read `STATE.md` (where things stand and what comes next),
-  then `exp/EXP_SUMMARY.md` (what was tried, what survived and what was
+- **At the start**, read `STATE.md` (where things stand, what comes next), then
+  `experiments/EXP_SUMMARY.md` (what was tried, what survived, what was
   retracted), then `docs/guardrails.md` (failures not to repeat). Check the
   running jobs in `STATE.md` before starting anything, so a job left by the
-  previous session is not ignored or run twice.
+  previous session is not ignored or run twice. Before building on or citing an
+  experiment, read its `summary.md`; open its `README.md` only to reproduce,
+  extend or audit the method.
 - **While working**, record immediately, not "later":
-  - experiment results → that experiment's `README.md` and its row in `exp/EXP_SUMMARY.md`;
-  - a retracted claim or a failure not to repeat → `docs/guardrails.md`, and the
-    status column of `exp/EXP_SUMMARY.md` in the same edit;
-  - a new or rejected idea → `docs/ideas.md`;
+  - experiment results → its `summary.md` and `README.md` and its index row, in one commit;
+  - a retracted, corrected or superseded result → Experiments › Status and Retraction;
+  - a failure not to repeat → `docs/guardrails.md`; an idea → `docs/ideas.md`;
   - a change of state (phase, a submitted or finished job, a decision) → `STATE.md`.
-- **At the end of a session and before any long or costly job**, update
-  `STATE.md` with the `write-handoff` skill. A running job needs how to check it
-  and where its result must be recorded.
-- `STATE.md` holds operational state only. Scientific narrative stays canonical
-  in `docs/` research logs and decision records, and per-experiment results in
-  `exp/NNN_<slug>/README.md` — link, do not duplicate.
-- Before any long or costly job, walk `docs/launch-checklist.md`. Log every such
-  job in `exp/JOBS.md` immediately at submission and again at completion.
-- Keep the always-read files, `STATE.md` and `exp/EXP_SUMMARY.md`, within about
-  150 lines. Move older material to research logs; a bloated file costs context
-  every time it is read.
-- `tests/test_repo_structure.py` checks this structure mechanically.
+- **Before reporting a finished task** that changed results, decisions, jobs or
+  next steps, **and before any long or costly job**, update `STATE.md` with the
+  `write-handoff` skill and commit it, then report. You cannot tell when a
+  session will end, and a report in chat does not survive it.
+- Before any long or costly job, walk `docs/launch-checklist.md`, and log the job
+  in `experiments/JOBS.md` at submission and again at completion.
+- `STATE.md` holds operational state only; link to the canonical places below,
+  do not duplicate them. The always-read files have character budgets, and index
+  rows a length cap, checked by `tests/test_repo_structure.py`. Long lines do not
+  help: move detail out (finished jobs to `JOBS.md`, older decisions to decision
+  records, an experiment's detail to its `summary.md`, a guardrail's story to a
+  research log).
+- Agent memory (Claude Code auto memory, Codex memories) is per tool and per
+  machine: keep no project state there. When memory and a file disagree, the file wins.
 
 ### Single Source of Truth
 
@@ -74,14 +80,15 @@ two files.
 
 | Information | Canonical place |
 |---|---|
-| Current state and next actions | `STATE.md` |
-| Long or costly jobs | `exp/JOBS.md` |
-| Experiment index and status, including retractions | `exp/EXP_SUMMARY.md` |
-| Experiment details (purpose, method, results, discussion) | `exp/NNN_<slug>/README.md` |
+| Current state, running jobs and how to check them, next actions | `STATE.md` |
+| History of long or costly jobs | `experiments/JOBS.md` |
+| Experiment index and status word, including retractions | `experiments/EXP_SUMMARY.md` (a test keeps each `summary.md` status equal) |
+| One experiment's current conclusion | `experiments/NNN_<slug>/summary.md` |
+| One experiment's record (purpose, method, runs, discussion, corrections) | `experiments/NNN_<slug>/README.md` |
 | Retracted claims and failures not to repeat | `docs/guardrails.md` |
 | Promising and rejected ideas | `docs/ideas.md` |
 | Rationale and history | `docs/` research logs and decision records |
-| Working rules | `AGENTS.md` |
+| Working rules | `AGENTS.md` (experiment rules also in `experiments/README.md`, in Japanese) |
 | Numbers in the manuscript | `result/tables/*.csv`, not the manuscript text |
 | Bibliographic entries | `draft/reference.bib` |
 
@@ -89,19 +96,15 @@ two files.
 
 ## Project Overview
 
-This is a reusable research project template for analysis code, local data, generated results, and manuscript drafting. See `README.md` for the current directory layout.
+A reusable research project template for analysis code, local data, generated results and manuscript drafting. `README.md` shows the full layout.
 
-**Key directories:**
-- `data/raw/` — Raw input data. Treat as immutable and do not commit large files.
-- `data/interim/` — Intermediate data generated from raw inputs.
-- `data/processed/` — Analysis-ready derived data.
-- `src/` — Reusable project code.
-- `scripts/` — Execution scripts and one-off command entrypoints.
-- `exp/` — Numbered self-contained experiment directories (`NNN_<slug>/`). Copy `exp/_template/` to start one; `exp/EXP_SUMMARY.md` indexes them and `exp/JOBS.md` logs long or costly jobs. See the Experiments section and `exp/README.md`.
-- `result/` — Generated figures, tables, and analysis outputs.
-- `draft/` — Manuscript, supplementary material, references, and figure assets.
-- `docs/` — Human-facing project documentation in Japanese (research logs, decision records); see `docs/README.md`.
-- `tests/` — Pytest test suite; run via `docker compose exec research-template uv run pytest`.
+- `data/raw/` — raw input, immutable; `data/interim/`, `data/processed/` — derived data, regenerated by code.
+- `src/` — reusable code: `utils/` (paths, plotting, validation, I/O, the experiment harness), `models/` (data containers, loaders, parsers), `methods/` (analysis methods, statistics, algorithms), `analysis/` (workflows combining them). `config.py` holds shared paths and project constants.
+- `scripts/` — thin command entry points. `notebooks/`, if present, is for exploration (duplicated code is fine while testing an idea); move stable logic into `src/` or `scripts/`.
+- `experiments/` — numbered experiments; see Experiments.
+- `result/` — generated figures, tables and outputs. `draft/` — manuscript, supplement, references, hand-made figures.
+- `docs/` — human-facing documentation in Japanese (research logs, decision records); see `docs/README.md`.
+- `tests/` — the pytest suite, run in the container.
 
 ---
 
@@ -111,27 +114,22 @@ This is a reusable research project template for analysis code, local data, gene
 
 - Read target files before modifying them.
 - Check the current branch and working tree: `pwd && git branch && git status`.
-- `main` is protected (PR required with 1 approving review, force pushes and deletion blocked). Do all work on a feature branch and merge via pull request. The repository admin has PR-only bypass and can self-merge without a review; direct pushes are blocked for everyone.
-- If already on a working branch, continue as-is.
+- `main` is protected (PR required with 1 approving review, force pushes and deletion blocked). Do all work on a feature branch and merge via pull request. The repository admin has PR-only bypass and can self-merge without a review; direct pushes are blocked for everyone. If already on a working branch, continue as-is.
 - Check remaining TODOs with `rg -n "TODO|FIXME" .`.
 - Clarify assumptions when a request depends on unavailable data, missing credentials, or ambiguous research intent.
 
 ### During Work
 
-- Prefer Docker for normal project execution: `docker compose exec research-template uv run ...`.
 - Validate inputs early with explicit checks.
-- Keep source code reusable; place shared logic under `src/`.
-- Keep scripts thin; scripts should orchestrate reusable functions instead of holding complex logic.
-- Avoid editing generated outputs by hand; regenerate them from code.
+- Search before writing a function: `rg -n "<concept>" src config.py scripts experiments`. Reuse what exists and follow nearby working examples; add a missing reusable piece to the right `src/` module first; keep script-local helpers small. Do not reimplement a calculation in two places, create near-duplicate helpers, or change a shared helper's behaviour without checking its callers. If reuse would give a wrong result, fix the shared code or add a clearly named alternative with tests.
+- Keep scripts thin: they orchestrate functions from `src/`.
+- Do not edit generated outputs by hand; regenerate them from code.
 
 ### Before Committing
 
-- Run the smallest useful verification for the change.
-- For Python changes, run targeted tests or the modified script via Docker.
+- Run the smallest useful check while working, and `make check` (ruff and every test, in the container) before committing code. After editing `experiments/`, `STATE.md`, `docs/` or a skill, run at least `tests/test_repo_structure.py`.
 - For manuscript changes, build with `bash draft/compile.sh` on the host.
-- Remove resolved TODO comments and local debug output.
-- Stage only files intentionally changed for the task.
-- Confirm `git status` before committing or pushing.
+- Remove resolved TODO comments and local debug output. Stage only files intentionally changed, and confirm `git status` before committing or pushing.
 
 ### What to Test
 
@@ -140,35 +138,36 @@ This is a reusable research project template for analysis code, local data, gene
 - For the manuscript, test only structure that breaks the PDF silently: citation keys, cross-reference labels, and input and figure files (`tests/test_manuscript_structure.py`). Do not pin headings, word counts, wording or claims; the authors check the text.
 - Add tests for new calculations, real bugs and system constraints, not for every edit of the prose. A suite that grows with every rewording stops being run.
 
-### Notebook vs Script vs Source
-
-- `src/` — Reusable functions, classes, and modules.
-- `scripts/` — Reproducible command entrypoints.
-- `notebooks/` if present — Exploratory analysis, visualization, and prototyping.
-- Move stable notebook logic into `src/` or `scripts/`.
-
 ---
 
 ## Experiments
 
-Iterative experiments live under `exp/`, one numbered directory per experiment.
+Iterative experiments live under `experiments/`, one numbered directory each. `experiments/README.md` is the Japanese version of this section; change both in the same edit.
 
 ### Structure
 
-- Name: `NNN_<slug>` (zero-padded sequence, e.g. `001_baseline_fit`); use the next unused number.
-- Start a new experiment with `cp -r exp/_template exp/NNN_<slug>`.
-- Each experiment is self-contained: `README.md` (purpose/method/results/notes), `run.py` (entrypoint), `params.py` (parameters), `out/` (all outputs).
-- Run with `docker compose exec research-template uv run python exp/NNN_<slug>/run.py`.
-- `run.py` begins with a sys.path bootstrap that makes `config` and `src` importable; keep it — the project is not installed as a package.
+- Name: `NNN_<slug>`, three digits and a lower_snake_case slug (e.g. `001_baseline_fit`); the number is the highest in use plus one. `make experiment SLUG=<slug>` picks it, copies `experiments/_template/`, fills in the name and date and adds the index row (or do the same by hand after `cp -r`).
+- Each experiment is self-contained:
+  - `summary.md` — the current conclusion: status, question and decision rule, answer and what it cannot show, key numbers with their source, the full run. Short (the test sets the limit); rewritten whenever the conclusion changes.
+  - `README.md` — the dated record: purpose, method, runs, discussion, corrections. Append only.
+  - `run.py` (entry point), `params.py` (every value that defines the experiment, pinned there, not read from `config.py`), `out/` (all outputs).
+- `run.py` goes through `src.utils.experiment.start()`: `--smoke` (applies `params.SMOKE`, writes to `out/smoke/`, never promotes), `--overwrite` (needed to replace a completed run; each run holds a lock on its `out/`, so two runs never share one, and first clears what the earlier run left there), `run.promote()` (copies to `result/` only when the run completes), stage progress, and `out/params_used.json` (status, seed, parameters, commit and the list of uncommitted files, stage timings, promoted files; a run with uncommitted code cannot promote). Extend that module instead of writing provenance code in `run.py`. Keep the sys.path bootstrap at the top of `run.py`; the project is not installed as a package.
+- Run `--smoke` first; its stage timings are the pilot `docs/launch-checklist.md` asks for.
+
+### Status and Retraction
+
+- The index status cell and the `summary.md` 状態 line start with the same word: 進行中 (no conclusion yet), 完了 (the answer stands), 中止 (stopped without a conclusion), 訂正 (partly corrected, main conclusion stands), 撤回 (main conclusion withdrawn) or 置き換え (a later experiment answers the same question), optionally followed by a date and the evidence, e.g. `撤回(2026-10-02、→ 025_threshold_check)`.
+- Write the question and decision rule in `summary.md` at creation and commit them with `params.py` before the full run. Fill in the answer, key numbers and full run after it, in the same commit as the index row. A smoke run changes neither; an `--overwrite` rerun updates both.
+- To retract, correct or supersede, in one commit: rewrite 状態 and 答え in `summary.md`, striking the withdrawn statement through instead of deleting it, and fill in its 訂正・撤回・置き換え line; start the index status with the same word; for 撤回, add a row to `docs/guardrails.md`. A heading that still reads as a live conclusion after the body retracted it misleads every later reader.
+- Never delete an experiment directory or its index row; mark it 中止, so no number is reused.
 
 ### Rules
 
-- Everything an experiment produces goes into its own `out/`; `exp/*/out/` is git-ignored and never committed.
-- Commit the experiment's code and README; update the experiment `README.md` with findings after each meaningful run.
-- When you create an experiment, add its row to `exp/EXP_SUMMARY.md`. When its conclusion changes, update the row's one-line summary and status. When you retract or correct it, say so in the status column: a heading that still reads as a live conclusion after the body retracted it misleads every later reader. `tests/test_repo_structure.py` checks that the experiment directories and the index match.
-- Treat finished experiments as immutable: never change a past experiment's `run.py`/`params.py` to produce new results — start a new numbered experiment instead. Appending notes or fixing typos in its README is fine.
-- When logic is needed by a second experiment, move it into `src/` and import it from both; never copy-paste between experiment directories.
-- Promote paper-ready figures to `result/figures/` via code (a final step in `run.py` or a script in `scripts/`), never by manual copying.
+- Everything an experiment produces goes into its own `out/`, which is git-ignored.
+- Finished experiments are immutable: never change a past `run.py`/`params.py` to produce new results; start a new number. In `README.md` only append and fix typos; `summary.md` is the one file you rewrite.
+- Logic needed by a second experiment moves into `src/`; never copy it between experiments.
+- Never read another experiment's `out/` or import its `run.py` (`out/` is absent from a fresh clone and replaced by a rerun). Promote what others need in code (`run.promote()` or a script): small tables to `result/tables/` (committed), large data to `data/processed/`, figures to `result/figures/`. Never copy by hand.
+- A number in `summary.md` or `README.md` carries its source (CSV, row, column); the CSV wins.
 
 ### Write Experiments to Run Fast
 
@@ -196,24 +195,18 @@ experiment will be run many times.
 
 ## Environment Rules
 
-- Use Docker + `uv run` for normal script and test execution.
-- Use Docker + `uv add` for package installation.
-- Never create a project `.venv` or `venv` on the host, and never run `python -m venv`, `virtualenv`, `uv venv`, `uv sync`, `uv run` or a project `pip install` there. Git, file operations and Docker commands run on the host; project Python, uv and tests run in the container.
-- The project environment is `/opt/venv` inside the image (`UV_PROJECT_ENVIRONMENT`), baked from `uv.lock` at build time. `HOME` (`/home/app`) and the uv cache (`/opt/uv-cache`) are Docker named volumes, and `PYTHONPYCACHEPREFIX` keeps `__pycache__` under `HOME`. Nothing environment-related is written under `/workspace`, so no `.venv`, uv cache or `__pycache__` appears on the host.
-- `uv add` updates `pyproject.toml` and `uv.lock` on the host and the environment in the running container. Run `docker compose build` afterwards so the image keeps the change.
-- The build installs `uv.lock` frozen, so a stale lock stops it (`Missing workspace member` after renaming the project in `pyproject.toml`). Update the lock with `make lock`, which runs `uv lock` in a throwaway uv container, before building.
-- If you must enter the container interactively, use `docker compose exec research-template bash`, but prefer direct `docker compose exec ... uv run ...`.
-- Raw data is mounted read-only at `/data` and, through an overlay, at `/workspace/data/raw`, so it cannot be modified through either path.
-- GPU access is opt-in via the `docker-compose.gpu.yml` override; the base compose file runs CPU-only.
-- Copy `.env.example` to `.env` before the first `docker compose build` (sets `UID`/`GID`, optional `DATA_ROOT`).
-- `uv.lock` is committed; after `uv add`/`uv remove`, commit the updated lockfile.
+- Project Python, uv, package installs and tests run in the container (`docker compose exec research-template uv run|add ...`); Git, file operations and Docker run on the host. Never start `python` or `python3` on the host, not even for `--version`, `-c` or a heredoc that edits text (use the editor tool or `sed`), and never create a `.venv` or run `virtualenv`, `uv` or a project `pip install` there. For Claude Code, `.claude/settings.json` denies these commands; Codex has no such file, so for Codex this rule is the only guard.
+- The environment is `/opt/venv` in the image, baked from `uv.lock`. `HOME` and the uv cache are named volumes, and the caches (`__pycache__`, pytest, ruff) live under `HOME`, so nothing environment-related is written under `/workspace`.
+- `uv add` and `uv remove` update `pyproject.toml`, `uv.lock` and the running container; run `docker compose build` afterwards so the image keeps it, and commit `uv.lock`. The build installs the lock frozen, so a stale lock stops it (`Missing workspace member` after renaming the project); refresh it with `make lock`.
+- Raw data (`data/raw/`, or `HOST_DATA_DIR` from `.env`) is mounted read-only at `/data` and, through an overlay, at `/workspace/data/raw`.
+- GPU is opt-in: set `COMPOSE_FILE=docker-compose.yml:docker-compose.gpu.yml` in `.env`. Passing `-f` to one command is not enough: the next plain `docker compose up -d` (after `uv add`, say) recreates the container without the GPU, with no error.
+- Copy `.env.example` to `.env` before the first build (`UID`/`GID`; optional `HOST_DATA_DIR`, `COMPOSE_FILE`, `COMPOSE_PROJECT_NAME`). No port is published and the container does not restart by itself; `make` targets start it. Start Jupyter on demand, on localhost (README.md).
 
 ### LaTeX Compilation
 
-- Use host `lualatex`; the container has no TeX distribution.
-- Build with `bash draft/compile.sh` (or `make tex`). It runs `lualatex` → `bibtex` (when the document declares a bibliography and cites something) → `lualatex` → `lualatex` for `main.tex` and `supplementary.tex`, writes every intermediate file to the git-ignored `draft/build/`, and leaves only the PDFs in `draft/`.
-- Do not run `lualatex` by hand inside `draft/`. Stale `.aux` and `.bbl` files left there are picked up silently and produce a PDF with missing or outdated references.
-- `bash draft/compile.sh --review` (or `make tex-review`) writes `draft/main_review.pdf` with line numbers and double spacing for submission. `main.tex` switches only its layout on `\reviewformat`; the text is identical.
+- Use host `lualatex` (the container has no TeX) through `bash draft/compile.sh` (`make tex`): `lualatex` → `bibtex` (when something is cited) → `lualatex` ×2 for `main.tex` and `supplementary.tex`, every intermediate in the git-ignored `draft/build/`, the PDFs in `draft/`. It prints only `file:line` errors (transcripts in `draft/build/<job>.log`) and exits non-zero while a citation or reference is undefined.
+- Do not run `lualatex` by hand inside `draft/`: stale `.aux` and `.bbl` files left there are read silently and give a PDF with missing or outdated references.
+- `--review` (`make tex-review`) writes `draft/main_review.pdf` with line numbers and double spacing; `main.tex` switches only its layout on `\reviewformat`.
 
 ---
 
@@ -230,49 +223,10 @@ assert "key" in data, f"Expected 'key' in data. Got: {list(data.keys())}"
 value = data["key"]
 ```
 
-- Do not use dummy values to make code run.
-- Do not swallow exceptions silently.
+- Do not use dummy values to make code run, and do not swallow exceptions silently.
 - Avoid broad `try`/`except` unless the failure mode is intentionally handled.
 - Make data assumptions visible in assertions, validation functions, or clear error messages.
-
-### In Exploratory Work
-
-- Defensive defaults are acceptable for quick exploration.
-- Convert exploratory shortcuts into explicit validation before moving code into `src/` or production scripts.
-
----
-
-## Code Reuse
-
-Before writing a new function, class, or helper, inspect the existing project modules and reuse suitable implementations.
-
-### Shared Module Areas
-
-- `src/utils/` — General utilities such as paths, math helpers, plotting helpers, validation, randomness, and file I/O.
-- `src/models/` — Domain objects, typed data containers, loaders, and parsers.
-- `src/methods/` — Reusable analysis methods, statistical procedures, algorithms, and modeling code.
-- `src/analysis/` — Higher-level analysis workflows that combine utilities, models, and methods.
-- `config.py` — Shared paths, parameters, thresholds, and project-level constants.
-
-### Reuse Procedure
-
-1. Search before writing: `rg -n "<concept-or-function-name>" src config.py scripts`.
-2. Check nearby working examples before inventing a new calling pattern.
-3. If a reusable implementation is missing, add it to the appropriate shared module first.
-4. Keep script-local helpers small and task-specific.
-5. Do not copy old or external code into a new script if it can be expressed through current project APIs.
-
-### Avoid
-
-- Reimplementing the same calculation in multiple scripts.
-- Embedding parsing, validation, or plotting conventions in one-off scripts when they should be shared.
-- Creating near-duplicate helper names with slightly different behavior.
-- Changing public helper behavior without checking current callers.
-
-### Exceptions
-
-- Temporary exploratory notebook code may be duplicated while testing an idea.
-- If reusing an existing implementation would produce incorrect behavior, update the shared implementation or add a clearly named alternative with tests.
+- Defensive defaults are acceptable in quick exploration; convert them into explicit validation before the code moves into `src/` or a script.
 
 ---
 
@@ -280,35 +234,26 @@ Before writing a new function, class, or helper, inspect the existing project mo
 
 ### Git Operations
 
-- Do not commit unnecessary files.
-- Do not push without verification.
+- Do not commit unnecessary files, and do not push without verification.
 - Do not commit directly to `main`; it is protected. Use a feature branch and open a pull request.
-- Do not rewrite shared history unless the user explicitly requests it.
-- Do not revert changes you did not make unless the user explicitly requests it.
+- Do not rewrite shared history, or revert changes you did not make, unless the user explicitly requests it.
 
 ### Data Handling
 
-- Never edit files in `data/raw/` directly; raw data should be immutable.
-- Avoid editing `data/interim/` or `data/processed/` directly; regenerate derived data from scripts when possible.
-- Never commit large data files to Git.
-- Never delete data without explicit user confirmation.
+- Never edit files in `data/raw/`. Avoid editing `data/interim/` or `data/processed/`; regenerate them from scripts.
+- Never commit large data files, and never delete data without explicit user confirmation.
 
 ### Generated Outputs
 
-- Treat `result/` as generated output.
-- Prefer regenerating figures and tables from source code.
-- Generate the numbers and tables in the manuscript from the CSVs in `result/tables/`: write LaTeX macros or table files in code and `\input` them, instead of typing values into the `.tex` files. A test that passes on the CSV does not protect a number copied into the text by hand.
-- Avoid committing large generated artifacts unless the user explicitly asks for them.
+- `result/` is generated output: regenerate figures and tables from code.
+- Generate the numbers and tables in the manuscript from `result/tables/*.csv` in code and `\input` them; never type a value into the `.tex` files. A test that passes on the CSV does not protect a number copied by hand. For a number in the text, register a `Number` in `scripts/make_numbers.py`, run `make numbers`, write `\Name{}`, and commit `draft/tables/numbers.tex` with its CSVs (a test fails when it is stale). Format table cells with `src.utils.tex_numbers.format_value`, so tables and text round alike.
+- The manuscript reads promoted figures from `result/figures/` (`\graphicspath`); `draft/figures/` holds only hand-made ones.
+- Commit `result/tables/*.csv` (small, canonical for the manuscript). Do not commit large generated artifacts unless the user asks.
 
-### Import Management
+### Imports and Security
 
-- Keep import style consistent within the project.
-- Avoid changing relative imports to absolute imports, or the reverse, unless the package layout requires it.
-
-### Security
-
-- Never hardcode passwords, tokens, API keys, or personal credentials.
-- Keep secrets in environment variables or ignored local files such as `.env`.
+- Keep import style consistent; do not switch between relative and absolute imports unless the package layout requires it.
+- Never hardcode passwords, tokens, API keys, or personal credentials; keep secrets in environment variables or ignored files such as `.env`.
 
 ---
 
@@ -322,16 +267,5 @@ Before writing a new function, class, or helper, inspect the existing project mo
 
 ## Permissions
 
-### Usually Safe
-
-- Reading files.
-- Running tests and non-destructive checks.
-- Compiling TeX.
-- Inspecting Git status, diffs, and logs.
-
-### Confirm First
-
-- Deleting files or directories.
-- Installing packages.
-- Changing repository visibility, remotes, or authentication.
-- Any irreversible or high-cost operation.
+- Usually safe: reading files, running tests and non-destructive checks, compiling TeX, inspecting Git status, diffs and logs.
+- Confirm first: deleting files or directories, installing packages, changing repository visibility, remotes or authentication, and any irreversible or high-cost operation.

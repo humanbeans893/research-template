@@ -19,6 +19,13 @@
 \usepackage{lineno}
 \usepackage{setspace}
 
+% Figures promoted by code to result/figures/ are read from there; draft/figures/
+% holds figures made by hand (schematics).
+\graphicspath{{figures/}{../result/figures/}}
+% Numbers in the text: macros that scripts/make_numbers.py writes from
+% result/tables/*.csv (make numbers). Never type a result into the text.
+\input{tables/numbers}
+
 % `bash draft/compile.sh --review` defines \reviewformat: line numbers and
 % double spacing for submission. Only the layout changes, not the text.
 \ifdefined\reviewformat

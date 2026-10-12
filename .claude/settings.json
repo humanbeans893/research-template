@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(python *)",
+      "Bash(python3 *)",
+      "Bash(pip *)",
+      "Bash(pip3 *)",
+      "Bash(virtualenv *)",
+      "Bash(uv *)",
+      "Bash(uvx *)"
+    ]
+  }
+}

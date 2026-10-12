@@ -38,13 +38,17 @@ RUN (getent group "${GID}" >/dev/null || groupadd -g "${GID}" app) \
 
 # The project environment lives in the image at /opt/venv, never in
 # /workspace/.venv: /workspace is the bind-mounted repository, and an
-# environment there would be written back to the host.
+# environment there would be written back to the host. The ruff cache stays
+# off it too. PYTHONUNBUFFERED makes stage progress appear as it happens when
+# stdout is not a terminal (docker compose exec -T, an agent, a log file).
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
     VIRTUAL_ENV=/opt/venv \
     UV_CACHE_DIR=/opt/uv-cache \
     UV_PYTHON_DOWNLOADS=never \
     UV_LINK_MODE=copy \
     PYTHONPYCACHEPREFIX=/home/app/.cache/pycache \
+    RUFF_CACHE_DIR=/home/app/.cache/ruff \
+    PYTHONUNBUFFERED=1 \
     PATH=/opt/venv/bin:$PATH
 RUN mkdir -p /opt/venv /opt/uv-cache /opt/project \
     && chown "${UID}:${GID}" /opt/venv /opt/uv-cache /opt/project
