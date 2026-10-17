@@ -5,7 +5,7 @@ out=[]
 for r in rows:
     m=r.get('message') or {}
     c=m.get('content')
-    if not isinstance(c,list): 
+    if not isinstance(c,list):
         if isinstance(c,str): out.append((r.get('type'),c[:600]))
         continue
     for x in c:
