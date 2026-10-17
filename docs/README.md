@@ -20,6 +20,8 @@
 ## 定型ドキュメント(セッション引き継ぎ系)
 
 - `../STATE.md` — 運用状態の単一ページ。セッション開始時に最初に読む
+- [`../DYNAMIC_WORKFLOW.md`](../DYNAMIC_WORKFLOW.md) — 複数エージェントの見積もり・分担・再開の共通手引き
+- [`../.agent-runs/README.md`](../.agent-runs/README.md) — 共有実行台帳。セッション開始時と引き継ぎ時に一覧の末尾と直近の実行を確認する
 - `../experiments/EXP_SUMMARY.md` — 全実験の索引と状態(撤回を含む)。`STATE.md` の次に読む。各実験の今の結論は `NNN_<slug>/summary.md`
 - `../experiments/JOBS.md` — 長時間ジョブ台帳(投入直後に記録)
 - `launch-checklist.md` — 高コスト実行の投入前チェックリスト
