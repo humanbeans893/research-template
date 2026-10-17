@@ -18,6 +18,8 @@ EXPERIMENTS = ROOT / "experiments"
 HANDOFF_DOCUMENTS = (
     "AGENTS.md",
     "CLAUDE.md",
+    "DYNAMIC_WORKFLOW.md",
+    ".agent-runs/README.md",
     "STATE.md",
     "experiments/README.md",
     "experiments/EXP_SUMMARY.md",
@@ -130,16 +132,35 @@ def test_each_experiment_has_a_readme_and_a_short_summary_that_agrees_with_the_i
     assert not problems, "\n".join(problems)
 
 
+def ignored(path: str) -> bool:
+    result = subprocess.run(["git", "check-ignore", "-q", "--no-index", path], cwd=ROOT,
+                            capture_output=True, text=True, check=False)
+    assert result.returncode in (0, 1), f"git check-ignore failed: {result.stderr.strip()}"
+    return result.returncode == 0
+
+
 def test_experiment_outputs_are_git_ignored() -> None:
     # A rename or an edit that misses .gitignore makes every out/ committable, silently.
-    def ignored(path: str) -> bool:
-        result = subprocess.run(["git", "check-ignore", "-q", "--no-index", path], cwd=ROOT,
-                                capture_output=True, text=True, check=False)
-        assert result.returncode in (0, 1), f"git check-ignore failed: {result.stderr.strip()}"
-        return result.returncode == 0
-
     assert ignored("experiments/999_probe/out/table.csv"), "experiments/*/out/ is not git-ignored: fix .gitignore"
     assert not ignored("experiments/_template/out/.gitkeep"), "experiments/*/out/.gitkeep must stay tracked"
+
+
+@pytest.mark.parametrize(("relative", "expected"), [
+    ("runs/x", True),
+    ("sessions.jsonl", True),
+    ("prefixes.txt", True),
+    ("notes/estimate.md", True),
+    ("shared/codex/common.md", True),
+    ("shared/tools/__pycache__/index_sessions.cpython-311.pyc", True),
+    ("README.md", False),
+    ("shared/tools/index_sessions.py", False),
+    ("shared/tools/export_workflow_run.py", False),
+    ("shared/tools/token_units.py", False),
+    ("shared/tools/tail_agent.py", False),
+])
+def test_agent_run_records_stay_local_but_guidance_and_tools_can_be_tracked(relative: str, expected: bool) -> None:
+    path = f".agent-runs/{relative}"
+    assert ignored(path) == expected, f"{path}: expected git-ignored={expected}"
 
 
 def test_skills_declare_frontmatter() -> None:
