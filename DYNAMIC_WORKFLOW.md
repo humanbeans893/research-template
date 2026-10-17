@@ -90,7 +90,7 @@ c = floor( (5時間枠の残り% − 主セッションの余裕%) ÷ (1体の�
 
 - **項目ごとの鎖：** 実装（または前回の続き）→ 観点ごとのレビュー → 修正 → 最終確認 →
   確認が通らなければ修正のやり直し（最大2回、2回目は上位のモデル）。依存する項目は親の完了で始める。
-- **失敗の扱い：** 作業者の失敗（結果が null）や Codex の失敗（報告の `codex_status` が failed）は、
+- **失敗の扱い：** 記録の明示的な失敗、結果が null、報告の `codex_status` が `failed` で始まる場合は、
   その項目の鎖を止める。空の結果で確認の作業者を起動しない。上限に達したとき、待ち行列の作業者が
   次々に起動して即座に失敗するのを防ぐ。
 - **同時実行：** 優先度つきの共有の枠で同時実行数を守り、臨界経路を最優先にする。仕様のレビューの
@@ -117,8 +117,8 @@ c = floor( (5時間枠の残り% − 主セッションの余裕%) ÷ (1体の�
 |---|---|
 | `README.md` | 読み方と書き方 |
 | `sessions.jsonl` | 両エージェントのセッションの一覧（エンジン、ID、作業ディレクトリ、開始と終了、最初の依頼、記録の場所） |
-| `runs/<run>/` | 実行ごとの `script.js`、`manifest.json`（ワークフローの ID、引数、続きの地点）、`journal.jsonl`、`results.json`（段階ごとの最新の結果）、`stages.jsonl`（作業者ごとの状態、記録の場所、使用量、Codex のセッション） |
-| `runs/<run>/stages/<key>-<role>/` | 段階の作業ディレクトリ。Codex の段階は `prompt.md`、`events.jsonl`、`last.json`、`stderr.txt`、`scratch/` |
+| `runs/<run>/` | 実行ごとの台本、設定、実行記録、段階ごとの最新の結果と状態（詳細は `.agent-runs/README.md`） |
+| `runs/<run>/stages/<key>-<role>/` | 段階の作業ディレクトリ。Codex の段階のファイルは `.agent-runs/README.md` を参照 |
 | `shared/` | 段階をまたぐ入力（`codex/common.md`、出力のスキーマ、試験用の補助、仕様、前の実行の結果）と `tools/` |
 | `notes/` | セッションのメモと、見積もり・実測の記録 |
 
@@ -126,6 +126,8 @@ c = floor( (5時間枠の残り% − 主セッションの余裕%) ÷ (1体の�
   `sessions.jsonl` の末尾 → 直前の `runs/<run>/results.json` と `stages.jsonl`。
 - **書く：** ワークフローが終わった、止めた、上限で落ちたら `export_workflow_run.py`。
   セッションの始めと終わりに `index_sessions.py`。
+  書き出しでは壊れた行を飛ばし、失敗した段階にも Codex の情報を残す。段階の場所は報告中の
+  `stage <dir>;` から読み、無ければ `--stages-dir` で指定した場所から探す。
 - **git：** 記録は会話の全文への参照を含むので管理外にし、`README.md` と `shared/tools/` だけを追跡する。
 - **道具**（`shared/tools/`、標準ライブラリだけ、記録を読むだけ）：
   - `token_units.py`：作業者の記録の使用量を入力換算で足す。
@@ -136,8 +138,9 @@ c = floor( (5時間枠の残り% − 主セッションの余裕%) ÷ (1体の�
   ホストと同じパスに読み取り専用でつないで動かす（コマンドは `.agent-runs/README.md`）。
 - **新しいリポジトリで使うとき：** `DYNAMIC_WORKFLOW.md`、`.agent-runs/README.md`、`.agent-runs/shared/tools/` を
   写し、`.gitignore` に次を加え、`AGENTS.md` にこの手引きと記録の読み書きの決まりを書く。`/tmp` の作業ツリーや
-  関連するリポジトリもこのリポジトリの作業とみなすなら、`.agent-runs/prefixes.txt` に接頭辞を書く
-  （リポジトリ自体と git の作業ツリーは自動で含まれる）。
+  関連するリポジトリもこのリポジトリの作業とみなすなら、`.agent-runs/prefixes.txt` に対象ディレクトリを書く。
+  リポジトリ自体と git の作業ツリーは自動で含まれる。通常はその場所と配下だけを対象とし、末尾が `*` なら
+  文字列の接頭辞として扱う（例：`/tmp/ks-*`）。`index_sessions.py --prefix` も同じ指定方法である。
 
   ```gitignore
   .agent-runs/*
@@ -154,7 +157,9 @@ c = floor( (5時間枠の残り% − 主セッションの余裕%) ÷ (1体の�
 
 - **Claude：** `get_usage` の5時間枠と週の枠の使用率と再設定の時刻。
 - **Codex：** セッションの記録 `~/.codex/sessions/**/rollout-*.jsonl` の `token_count` の
-  `rate_limits.primary.used_percent`（週の枠）と `credits`。手元の記録に無い消費（GitHub での Codex の
+  `rate_limits.primary` と `rate_limits.secondary` のうち、`window_minutes == 10080` の枠の
+  `used_percent` と `credits` を読む。書き出した段階の記録には `weekly_percent_first_last` と
+  `window_minutes` が並ぶ。週の観測が無ければ両方 null になる。手元の記録に無い消費（GitHub での Codex の
   PR レビュー、別の端末、クラウドの作業）でも減るので、起動の前と各段階の後に読む。
 - **クレジット：** 上限を超えてクレジットを使うのは、利用者の承認があるときだけ。クレジットの残高が
   あると上限の後に自動で使われるおそれがあるので、承認が無ければ Codex の段階を止める（同時実行数 0）。
@@ -214,7 +219,7 @@ c = floor( (5時間枠の残り% − 主セッションの余裕%) ÷ (1体の�
 | 何が起きたか | 教訓 |
 |---|---|
 | 10体の同時実行で5時間枠を1時間足らずで使い切り、90体中66体が失敗した。大半は上限の後に起動して最初の要求で失敗した | 起動前に見積もる。失敗の後続を起動しない |
-| 1体の試験運用（xhigh）で Codex の週の枠の増分が1%未満に見えたが、max の段階は1〜4%使い、手元の記録に無い消費でも一晩に約58%減った | 試験運用の数値を一般化しない。段階の種類ごとに測る。Codex の使用率を各段階の後に読む |
+| xhigh の試験では週の増分が1%未満に見えたが、max は1〜4%。手元以外の消費でも一晩に約58%減った | 数値を一般化せず、段階の種類ごとに測り、各段階の後に使用率を読む |
 | 同時実行数を変えた再開でも、同じ引数の再開でも、完了済みの段階がやり直しになりかけた | 再開のキャッシュに頼らず、続きの地点を書いた新しい実行で続ける |
 | 作業ツリーを作る前に Codex を起動し、実装が始まらなかった | 作業ツリーを先に作る |
 | 仕様のレビューを低い優先度にして回らず、それを前提にする実装が待たされた | 前提になる作業を最優先にする |
@@ -230,15 +235,26 @@ c = floor( (5時間枠の残り% − 主セッションの余裕%) ÷ (1体の�
 function codexStage({ key, role, worktree, model, effort, body, label, phase, setup }) {
   const dir = `${LEDGER}/runs/${RUN}/stages/${key}-cx-${role}`
   const prompt = `Read ${COMMON} first.\n\nSTAGE DIRECTORY: ${dir}/scratch/\n\n${body}`
-  return CODEX_POOL(priority(key), () => agent(`You are a thin wrapper that runs ONE Codex stage and returns its report. Do not read, edit, test or commit anything yourself.
+  return CODEX_POOL(priority(key), () => agent(`You are a thin wrapper that runs ONE Codex stage and returns its report.
+Do not read, edit, test or commit anything yourself.
 STEPS
-${setup ? `0. ${setup}\n` : ''}1. mkdir -p ${dir}/scratch/ and write the text between <<<PROMPT and PROMPT>>> to ${dir}/prompt.md exactly.
+${setup ? `0. ${setup}\n` : ''}1. mkdir -p ${dir}/scratch/
+Write the text between <<<PROMPT and PROMPT>>> to ${dir}/prompt.md exactly.
 2. Start Codex with exactly this single Bash command, with the Bash tool's run_in_background option:
-codex exec --approve-for-me -C ${worktree} --add-dir ${dir} -m ${model} -c model_reasoning_effort='"${effort}"' --json --output-schema ${SCHEMA} -o ${dir}/last.json - < ${dir}/prompt.md > ${dir}/events.jsonl 2> ${dir}/stderr.txt
+codex exec --approve-for-me -C ${worktree} --add-dir ${dir} -m ${model} \\
+  -c model_reasoning_effort='"${effort}"' --json --output-schema ${SCHEMA} \\
+  -o ${dir}/last.json - < ${dir}/prompt.md > ${dir}/events.jsonl 2> ${dir}/stderr.txt
 3. Repeat this foreground command (Bash timeout 600000) until it prints CODEX_EXITED:
-p=$(pgrep -nf '[c]odex exec --approve-for-me -C ${worktree} '); if [ -z "$p" ]; then echo CODEX_EXITED; else timeout 590 tail --pid=$p -f /dev/null; if kill -0 $p 2>/dev/null; then echo STILL_RUNNING; else echo CODEX_EXITED; fi; fi
+p=$(pgrep -nf '[c]odex exec --approve-for-me -C ${worktree} ')
+if [ -z "$p" ]; then
+  echo CODEX_EXITED
+else
+  timeout 590 tail --pid=$p -f /dev/null
+  if kill -0 $p 2>/dev/null; then echo STILL_RUNNING; else echo CODEX_EXITED; fi
+fi
 4. cat ${dir}/last.json; tail -n 5 ${dir}/stderr.txt; grep '"turn.completed"' ${dir}/events.jsonl | tail -n 1
-5. Return every field of last.json unchanged and codex_status = "ok: stage ${dir}; <usage line>", or "failed: <stderr tail>".
+5. Return every field of last.json unchanged and codex_status = "ok: stage ${dir}; <usage line>"
+or "failed: stage ${dir}; <stderr tail>".
 <<<PROMPT
 ${prompt}
 PROMPT>>>`, { label, phase, schema: CODEX_REPORT_SCHEMA, model: 'sonnet', effort: 'low' }))
@@ -269,7 +285,8 @@ function priorityPool(n) {
 // 記録の中の報告を参照で渡す
 const ref = (file, key, base) => ({ cached: key, file, base })
 const repText = rep => rep.cached
-  ? `the JSON object under key "${rep.cached}" in ${rep.file} (jq '.["${rep.cached}"]' ${rep.file}); commits after it (git log ${rep.base}..HEAD) belong to the branch too`
+  ? `the JSON object under key "${rep.cached}" in ${rep.file} (jq '.["${rep.cached}"]' ${rep.file}); `
+    + `commits after it (git log ${rep.base}..HEAD) belong to the branch too`
   : JSON.stringify(rep)
 
 // 確認の round n から（通らなければ修正 → 確認を repair2 まで）

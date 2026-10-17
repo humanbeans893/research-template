@@ -13,12 +13,22 @@ git では、この `README.md` と `shared/tools/` だけを追跡する。そ�
 
 | 場所 | 中身 |
 |---|---|
-| `sessions.jsonl` | このリポジトリ（と作業ツリー）で動いた両エージェントのセッションの一覧。エンジン、ID、作業ディレクトリ、開始と終了、最初の依頼、記録の場所。`shared/tools/index_sessions.py` で作り直す |
-| `prefixes.txt` | 任意。このリポジトリの作業とみなす作業ディレクトリの接頭辞を1行に1つ（`/tmp` の作業ツリー、関連するリポジトリなど）。リポジトリ自体と git の作業ツリーは自動で含まれる |
-| `runs/<run>/` | ワークフローの1回の実行。`manifest.json`（ワークフローの ID、引数、続きの地点）、`script.js`（台本）、`journal.jsonl`（写し）、`results.json`（段階ごとの最新の結果）、`stages.jsonl`（作業者ごとの状態、記録の場所、入力換算の使用量、Codex の段階なら Codex のセッションと週の枠の使用率） |
-| `runs/<run>/stages/<key>-<role>/` | 各段階の作業ディレクトリ。Codex の段階は `<key>-cx-<role>/` に `prompt.md`（渡した指示）、`events.jsonl`（Codex の出来事）、`last.json`（最終報告）、`stderr.txt`、`scratch/` |
+| `sessions.jsonl` | このリポジトリと作業ツリーで動いた両エージェントのセッションの一覧 |
+| `prefixes.txt` | 任意。追加の対象ディレクトリを1行に1つ。末尾が `*` の行だけ文字列の接頭辞として扱う（例：`/tmp/ks-*`） |
+| `runs/<run>/` | ワークフロー1回分の台本、設定、実行記録、結果、段階ごとの状態 |
+| `runs/<run>/stages/<key>-<role>/` | 各段階の作業ディレクトリ。Codex の段階は `<key>-cx-<role>/` |
 | `notes/` | セッションのメモと、ワークフローの見積もり・実測の記録（`YYYYMMDD_topic.md`） |
 | `shared/` | 段階をまたいで使う入力（Codex に渡す共通の計画と規則、出力のスキーマ、仕様など）と `tools/` |
+
+`sessions.jsonl` にはエンジン、ID、作業ディレクトリ、開始と終了、最初の依頼、記録の場所を保存する。
+`shared/tools/index_sessions.py` で作り直す。リポジトリ自体と git の作業ツリーは自動で含まれる。
+`prefixes.txt` と `--prefix` は通常、そのディレクトリ自身と配下だけに一致する。
+`/x/repo` は `/x/repo-other` に一致しない。末尾の `*` を使えば `/tmp/ks-*` で `/tmp/ks-a` などをまとめられる。
+
+`runs/<run>/` には `manifest.json`（ID、引数、続きの地点）、`script.js`（台本）、`journal.jsonl`（写し）、
+`results.json`（段階ごとの最新の結果）、`stages.jsonl`（状態、記録の場所、入力換算の使用量、Codex の
+セッションと週の枠の使用率）を保存する。Codex の段階の作業ディレクトリには `prompt.md`（指示）、
+`events.jsonl`（出来事）、`last.json`（最終報告）、`stderr.txt`、`scratch/` を置く。
 
 ## 読み方（セッションの始め、または引き継ぎのとき）
 

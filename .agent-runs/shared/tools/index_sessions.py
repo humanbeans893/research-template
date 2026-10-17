@@ -6,9 +6,11 @@ either agent can find the other's history: engine, id, working directory, first 
 timestamp, the first user request, and the transcript path. Transcripts are referenced, not
 copied. Standard library only; read-only on both stores.
 
-A session belongs to the repository when its working directory is under one of the prefixes:
+A session belongs to the repository when its working directory equals a path prefix or is
+under that directory (matched on path-component boundaries). The prefixes include
 the repository root, its git worktrees (read from .git/worktrees), every line of the optional
-local file <ledger>/prefixes.txt, and every --prefix.
+local file <ledger>/prefixes.txt, and every --prefix. In prefixes.txt and --prefix, a trailing
+'*' selects a raw string prefix instead, e.g. /tmp/ks-* includes /tmp/ks-a.
 
 usage: python3 index_sessions.py [--ledger DIR] [--repo DIR] [--claude-root DIR]
                                  [--codex-root DIR] [--prefix PATH ...] [--out FILE]
@@ -58,6 +60,8 @@ def claude_sessions(root: Path, relevant):
                 except json.JSONDecodeError:
                     continue
                 cwd = cwd or row.get("cwd")
+                if cwd and not relevant(cwd):
+                    break
                 stamp = row.get("timestamp")
                 if stamp:
                     start = start or stamp
@@ -84,6 +88,8 @@ def codex_sessions(root: Path, relevant):
                 payload = row.get("payload") or {}
                 if meta is None and row.get("type") == "session_meta":
                     meta = payload
+                    if not relevant(meta.get("cwd")):
+                        break
                 end = row.get("timestamp") or end
                 if prompt is None and payload.get("type") == "message" and payload.get("role") == "user":
                     text = first_text(payload.get("content"))
@@ -99,10 +105,12 @@ def codex_sessions(root: Path, relevant):
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER)
-    parser.add_argument("--repo", type=Path, help="repository root as the sessions saw it (default: the ledger's parent)")
+    parser.add_argument("--repo", type=Path,
+                        help="repository root as the sessions saw it (default: the ledger's parent)")
     parser.add_argument("--claude-root", type=Path, default=HOME / ".claude" / "projects")
     parser.add_argument("--codex-root", type=Path, default=HOME / ".codex" / "sessions")
-    parser.add_argument("--prefix", action="append", default=[], help="extra working-directory prefix (repeatable)")
+    parser.add_argument("--prefix", action="append", default=[],
+                        help="extra directory prefix; trailing '*' means a raw string prefix (repeatable)")
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
     repo = args.repo or args.ledger.resolve().parent
@@ -112,9 +120,12 @@ def main() -> None:
         prefixes += [line.strip() for line in extra.read_text(encoding="utf-8").splitlines()
                      if line.strip() and not line.startswith("#")]
     prefixes = tuple(dict.fromkeys(prefixes))
+    raw_prefixes = tuple(p[:-1] for p in prefixes if p.endswith("*"))
+    path_prefixes = tuple(p.rstrip("/") for p in prefixes if not p.endswith("*"))
 
     def relevant(cwd):
-        return bool(cwd) and cwd.startswith(prefixes)
+        return bool(cwd) and (cwd.startswith(raw_prefixes)
+                              or any(cwd == p or cwd.startswith(p + "/") for p in path_prefixes))
 
     rows = sorted([*claude_sessions(args.claude_root, relevant), *codex_sessions(args.codex_root, relevant)],
                   key=lambda r: r.get("start") or "")

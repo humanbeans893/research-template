@@ -5,6 +5,9 @@ result of that label), stages.jsonl (one line per agent: label, phase, status, a
 transcript path, input-token equivalents, and for Codex stages the stage directory and the
 Codex session transcript), and script.js when the script file is given. Rerun it after the
 workflow ends or is stopped; it overwrites only these files. Standard library only.
+Malformed journal lines are skipped; explicit failures, null results, and failed Codex
+reports are recorded as failed stages. Weekly percentages select the 10080-minute window
+from either rate-limit slot and include its window_minutes.
 
 usage: python3 export_workflow_run.py <journal.jsonl> [--run NAME] [--script FILE]
                                       [--ledger DIR] [--codex-root DIR] [--stages-dir DIR ...]
@@ -46,34 +49,45 @@ def units(transcript: Path) -> float | None:
     return round(total)
 
 
-def codex_session_for(stage_dir: Path) -> dict | None:
+def codex_session_for(stage_dir: Path) -> dict:
     """Find the Codex session of a stage from its events.jsonl (thread.started) and its usage."""
     events = stage_dir / "events.jsonl"
-    if not events.exists():
-        return None
     thread, usage = None, None
-    for line in events.open(encoding="utf-8", errors="replace"):
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if event.get("type") == "thread.started":
-            thread = event.get("thread_id")
-        if event.get("type") == "turn.completed":
-            usage = event.get("usage")
+    if events.exists():
+        with events.open(encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if event.get("type") == "thread.started":
+                    thread = event.get("thread_id")
+                if event.get("type") == "turn.completed":
+                    usage = event.get("usage")
     rollout = None
     if thread:
         hits = sorted(CODEX_ROOT.glob(f"*/*/*/rollout-*{thread}.jsonl"))
         rollout = str(hits[0]) if hits else None
     percents = []
     if rollout:
-        for line in open(rollout, encoding="utf-8", errors="replace"):
-            if '"token_count"' in line:
-                payload = json.loads(line).get("payload") or {}
-                primary = (payload.get("rate_limits") or {}).get("primary") or {}
-                if primary.get("used_percent") is not None:
-                    percents.append(primary["used_percent"])
+        with open(rollout, encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                if '"token_count"' not in line:
+                    continue
+                try:
+                    payload = json.loads(line).get("payload") or {}
+                except json.JSONDecodeError:
+                    continue
+                if payload.get("type") != "token_count":
+                    continue
+                limits = payload.get("rate_limits") or {}
+                for name in ("primary", "secondary"):
+                    window = limits.get(name) or {}
+                    if window.get("window_minutes") == 10080 and window.get("used_percent") is not None:
+                        percents.append(window["used_percent"])
+                        break
     return {"stage_dir": str(stage_dir), "thread_id": thread, "codex_transcript": rollout, "usage": usage,
+            "window_minutes": 10080 if percents else None,
             "weekly_percent_first_last": [percents[0], percents[-1]] if percents else None}
 
 
@@ -94,7 +108,13 @@ def main() -> None:
     shutil.copyfile(args.journal, out / "journal.jsonl")
     if args.script:
         shutil.copyfile(args.script, out / "script.js")
-    rows = [json.loads(line) for line in args.journal.open(encoding="utf-8")]
+    rows = []
+    with args.journal.open(encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
     started = {}
     results, stages = {}, []
     for row in rows:
@@ -104,17 +124,21 @@ def main() -> None:
             begin = started.get(row.get("agentId"), {})
             label = begin.get("label")
             transcript = args.journal.parent / f"agent-{row.get('agentId')}.jsonl"
-            entry = {"label": label, "phase": begin.get("phase"), "status": row["type"], "agent_id": row.get("agentId"),
+            result = row.get("result")
+            status = result.get("codex_status") if isinstance(result, dict) else None
+            failed = row["type"] == "failed" or result is None or (
+                isinstance(status, str) and status.startswith("failed"))
+            entry = {"label": label, "phase": begin.get("phase"), "status": "failed" if failed else "result",
+                     "agent_id": row.get("agentId"),
                      "transcript": str(transcript), "units": units(transcript)}
             if row["type"] == "result":
-                results[label] = row.get("result")
-                status = row["result"].get("codex_status") if isinstance(row.get("result"), dict) else None
-                if status is not None:
-                    # The wrapper writes "ok: stage <dir>; <usage>" (older runs: the dir is found by name).
-                    match = re.search(r"stage (\S+?);", status)
-                    dirs = [Path(match.group(1))] if match else [
-                        d for base in args.stages_dir for d in sorted(base.glob(f"{(label or '').split(':')[-1]}-cx*"))]
-                    entry["codex"] = [codex_session_for(d) for d in dirs]
+                results[label] = result
+            # Failed reports may still identify a stage; older/null reports need the directory fallback.
+            match = re.search(r"\bstage ([^;]+);", status) if isinstance(status, str) else None
+            dirs = [Path(match.group(1).strip())] if match else [
+                d for base in args.stages_dir for d in sorted(base.glob(f"{(label or '').split(':')[-1]}-cx*"))]
+            if status is not None or dirs:
+                entry["codex"] = [codex_session_for(d) for d in dirs]
             stages.append(entry)
     (out / "results.json").write_text(json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")
     with (out / "stages.jsonl").open("w", encoding="utf-8") as handle:
