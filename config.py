@@ -20,6 +20,7 @@ DRAFT_DIR = PROJECT_ROOT / "draft"
 EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
 
 RAW_DATA_DIR = DATA_ROOT
+EXTERNAL_DATA_DIR = PROJECT_ROOT / "data" / "external"
 INTERIM_DATA_DIR = PROJECT_ROOT / "data" / "interim"
 PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
 

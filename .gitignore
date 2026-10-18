@@ -5,6 +5,9 @@ data/raw/**
 !data/raw/
 !data/raw/**/
 !data/raw/**/.gitkeep
+data/external/**
+!data/external/
+!data/external/README.md
 data/interim/**
 !data/interim/
 !data/interim/.gitkeep
