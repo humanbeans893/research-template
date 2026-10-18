@@ -109,6 +109,14 @@ Thumbs.db
 # Codex project settings can carry API keys and other secrets.
 .codex/config.toml
 
+# Shared agent ledger: keep only its README and reusable tools.
+.agent-runs/*
+!.agent-runs/README.md
+!.agent-runs/shared/
+.agent-runs/shared/*
+!.agent-runs/shared/tools/
+.agent-runs/shared/tools/__pycache__/
+
 # ============================
 # Per-user shared memory
 # ============================

@@ -32,6 +32,8 @@ cache_dir = "$HOME/.cache/pytest"
 
 [tool.ruff]
 target-version = "py311"
+# Shared workflow tools are copied verbatim across repositories; ledger output is local.
+extend-exclude = [".agent-runs/"]
 
 [tool.ruff.lint.per-file-ignores]
 # Entry points put the project root on sys.path before importing config and src.
