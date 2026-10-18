@@ -21,7 +21,10 @@ def main() -> None:
         seen = set()
         with path.open(encoding="utf-8") as handle:
             for line in handle:
-                row = json.loads(line)
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
                 if args.since and (row.get("timestamp") or "") < args.since:
                     continue
                 message = row.get("message") or {}
