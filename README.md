@@ -105,9 +105,11 @@ research-template/
 ├── docs/                  # 人間向けドキュメント(研究ログ・意思決定記録)
 ├── .claude/               # Claude Code のスキルと設定(settings.json がホストでの python・uv の実行を拒否)
 ├── .agents/               # Codex のスキル(write-handoff は .claude/skills/ と同じ内容)
+├── .agent-runs/           # 両エージェントの共有実行台帳(README.md と shared/tools/ のみ追跡)
 ├── STATE.md               # 運用状態の単一ページ(セッション開始時に最初に読む)
 ├── AGENTS.md              # エージェント向け指示の正典(英語)
 ├── CLAUDE.md              # AGENTS.md への参照のみ(内容を書かない)
+├── DYNAMIC_WORKFLOW.md    # 動的ワークフローの共通運用手引き
 ├── LICENSE                # MIT License
 ├── config.py              # 置き場所の定義だけ(ディレクトリとデータの場所)。結果を変えうる値は各実験の params.py
 ├── .env.example           # .env の雛形(UID/GID、HOST_DATA_DIR、GPU 用の COMPOSE_FILE)
@@ -264,6 +266,7 @@ docker compose exec research-template uv run python experiments/NNN_<slug>/run.p
 | `README.md` | 日本語 | 人間向けの入口(方針・手順・コマンド) | 構成やワークフローの変更時に `AGENTS.md` と**同時に**更新する |
 | `AGENTS.md` | 英語 | エージェント向け指示の**正典** | 運用ルールの変更は必ずここに書く |
 | `CLAUDE.md` | — | `See @AGENTS.md` の**ポインタのみ** | **内容を追加しない**。編集は常に `AGENTS.md` へ |
+| `DYNAMIC_WORKFLOW.md`・`.agent-runs/README.md` | 日本語 | 動的ワークフローの共通手引きと台帳の読み書き | 他のテンプレートと同一内容で共有し、道具も含めて個別に改変しない |
 | `STATE.md` | 日本語 | 運用状態の単一ページ(フェーズ、実行中のジョブ、決定、次の作業) | 状態が変わったらその場で。結果・決定・ジョブ・次の作業を変えたタスクの完了を報告する前と長時間ジョブの投入前は `write-handoff` スキルで更新してコミットする。字数の上限はテストが検査する |
 | `experiments/EXP_SUMMARY.md` | 日本語 | 全実験の索引と状態(撤回を含む) | 実験の作成時に1行足し、状態や結論が変わったら直す。状態の語は `summary.md` と同じにする。1行は短く、字数の上限はテストが検査する |
 | `docs/guardrails.md` | 日本語 | 撤回した主張と、繰り返さない失敗(1件1行) | 起きたらその場で。毎セッション読むので字数の上限をテストが検査する |
@@ -286,6 +289,12 @@ docker compose exec research-template uv run python experiments/NNN_<slug>/run.p
 このリポジトリに含まれるコード、設定ファイル、文書・原稿の雛形は [MIT License](LICENSE) で公開しています。
 
 このテンプレートから作成した研究リポジトリに後から追加される研究データ、個別の論文原稿、図表、第三者由来の素材へ MIT License が自動的に適用されるわけではありません。それぞれの権利者、データ提供元、共同研究契約、倫理審査、投稿規程に従って、公開範囲とライセンスを個別に定めてください。
+
+## エージェントの動的ワークフロー
+
+複数のエージェントを動かす作業は [`DYNAMIC_WORKFLOW.md`](DYNAMIC_WORKFLOW.md) に従います。起動前に作業量からトークン使用量を見積もり、実測に基づく予算で同時実行数を決め、Codex が実装、Opus がレビューを担当します。停止した実行は、台帳に記録したブランチごとの続きの地点から新しい実行として進めます。
+
+Claude Code と Codex は `.agent-runs/` に実行を記録し、セッション開始時と引き継ぎ時に [台帳の README](.agent-runs/README.md)、`sessions.jsonl` の末尾、直近の `runs/<run>/` を確認します(記録がある場合)。台帳の道具もホストでは実行せず、同 README の使い捨てコンテナのコマンドを使います。Codex の段階を起動するには、Git 管理外の `.claude/settings.local.json` に `"Bash(codex exec --approve-for-me:*)"` の許可を置きます。
 
 ## エージェントのスキル
 

@@ -73,6 +73,22 @@ session cut off at any point can be resumed from the files alone.
 - Agent memory (Claude Code auto memory, Codex memories) is per tool and per
   machine: keep no project state there. When memory and a file disagree, the file wins.
 
+### Dynamic Multi-Agent Workflows
+
+- Follow `DYNAMIC_WORKFLOW.md`: estimate token use from the work before launch,
+  set concurrency from the measured plan budget; Codex writes and Opus reviews.
+  Resume stopped runs as new runs from the ledger's recorded per-branch
+  continuation points, never by changing arguments to the stopped run.
+- Both Claude Code and Codex record workflow runs in `.agent-runs/`. At session
+  start and handoff, read `.agent-runs/README.md`, the end of `sessions.jsonl`,
+  and the latest `runs/<run>/` (manifest, results and stages), if present.
+- Rebuild the session index at session start/end; export finished, stopped or
+  failed runs with the ledger tools, as described in `.agent-runs/README.md`.
+- Run those tools in the README's throwaway `docker run --rm --network none ...`
+  container, mounting transcript stores read-only at their host paths; never use host Python.
+- Codex stages need the local, uncommitted `.claude/settings.local.json` allow rule
+  `"Bash(codex exec --approve-for-me:*)"`.
+
 ### Single Source of Truth
 
 Each piece of information has one canonical place. Do not keep the same table in
@@ -81,6 +97,7 @@ two files.
 | Information | Canonical place |
 |---|---|
 | Current state, running jobs and how to check them, next actions | `STATE.md` |
+| Shared workflow runs, session history and per-branch continuation points | `.agent-runs/` (see `.agent-runs/README.md`) |
 | History of long or costly jobs | `experiments/JOBS.md` |
 | Experiment index and status word, including retractions | `experiments/EXP_SUMMARY.md` (a test keeps each `summary.md` status equal) |
 | One experiment's current conclusion | `experiments/NNN_<slug>/summary.md` |
@@ -88,7 +105,7 @@ two files.
 | Retracted claims and failures not to repeat | `docs/guardrails.md` |
 | Promising and rejected ideas | `docs/ideas.md` |
 | Rationale and history | `docs/` research logs and decision records |
-| Working rules | `AGENTS.md` (experiment rules also in `experiments/README.md`, in Japanese) |
+| Working rules | `AGENTS.md`; dynamic workflows: `DYNAMIC_WORKFLOW.md` (experiment rules also in `experiments/README.md`, in Japanese) |
 | Numbers in the manuscript | `result/tables/*.csv`, not the manuscript text |
 | Bibliographic entries | `draft/reference.bib` |
 | Where each external dataset came from | `data/external/README.md` |
