@@ -76,7 +76,10 @@ session cut off at any point can be resumed from the files alone.
 ### Dynamic Multi-Agent Workflows
 
 - Follow `DYNAMIC_WORKFLOW.md`: estimate token use from the work before launch,
-  set concurrency from the measured plan budget; Codex writes and Opus reviews.
+  set concurrency from the measured plan budget. The orchestrating session picks
+  each stage's engine, model and effort, by default the strongest model at maximum
+  effort (Codex writes, Claude reviews); fit the limits with concurrency, timing or
+  scope, never by a weaker model unless the user approves.
   Resume stopped runs as new runs from the ledger's recorded per-branch
   continuation points, never by changing arguments to the stopped run.
 - Both Claude Code and Codex record workflow runs in `.agent-runs/`. At session

@@ -292,7 +292,7 @@ docker compose exec research-template uv run python experiments/NNN_<slug>/run.p
 
 ## エージェントの動的ワークフロー
 
-複数のエージェントを動かす作業は [`DYNAMIC_WORKFLOW.md`](DYNAMIC_WORKFLOW.md) に従います。起動前に作業量からトークン使用量を見積もり、実測に基づく予算で同時実行数を決め、Codex が実装、Opus がレビューを担当します。停止した実行は、台帳に記録したブランチごとの続きの地点から新しい実行として進めます。
+複数のエージェントを動かす作業は [`DYNAMIC_WORKFLOW.md`](DYNAMIC_WORKFLOW.md) に従います。起動前に作業量からトークン使用量を見積もり、実測に基づく予算で同時実行数を決めます。段階ごとのエンジンとモデルは主セッションが決め、既定は最上位のモデルと最大の推論の強さです(既定の分担は Codex が実装、Claude がレビュー)。停止した実行は、台帳に記録したブランチごとの続きの地点から新しい実行として進めます。
 
 Claude Code と Codex は `.agent-runs/` に実行を記録し、セッション開始時と引き継ぎ時に [台帳の README](.agent-runs/README.md)、`sessions.jsonl` の末尾、直近の `runs/<run>/` を確認します(記録がある場合)。台帳の道具もホストでは実行せず、同 README の使い捨てコンテナのコマンドを使います。Codex の段階を起動するには、Git 管理外の `.claude/settings.local.json` に `"Bash(codex exec --approve-for-me:*)"` の許可を置きます。
 

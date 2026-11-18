@@ -25,7 +25,7 @@ git では、この `README.md` と `shared/tools/` だけを追跡する。そ�
 `prefixes.txt` と `--prefix` は通常、そのディレクトリ自身と配下だけに一致する。
 `/x/repo` は `/x/repo-other` に一致しない。末尾の `*` を使えば `/tmp/ks-*` で `/tmp/ks-a` などをまとめられる。
 
-`runs/<run>/` には `manifest.json`（ID、引数、続きの地点）、`script.js`（台本）、`journal.jsonl`（写し）、
+`runs/<run>/` には `manifest.json`（ID、引数、段階ごとのエンジン・モデル・推論の強さ、続きの地点）、`script.js`（台本）、`journal.jsonl`（写し）、
 `results.json`（段階ごとの最新の結果）、`stages.jsonl`（状態、記録の場所、入力換算の使用量、Codex の
 セッションと週の枠の使用率）を保存する。Codex の段階の作業ディレクトリには `prompt.md`（指示）、
 `events.jsonl`（出来事）、`last.json`（最終報告）、`stderr.txt`、`scratch/` を置く。
@@ -41,7 +41,8 @@ git では、この `README.md` と `shared/tools/` だけを追跡する。そ�
 ## 書き方
 
 - ワークフローの台本は、段階の作業ディレクトリを `runs/<run>/stages/` に置く。`/tmp` のセッション専用の
-  作業領域には置かない。起動したら `runs/<run>/manifest.json` にワークフローの ID と引数を書く。
+  作業領域には置かない。起動したら `runs/<run>/manifest.json` にワークフローの ID、引数、
+  段階ごとのエンジン・モデル・推論の強さ（既定から外れるものは理由も）を書く。
 - ワークフローが終わったとき、止めたとき、利用上限で落ちたときは、記録を書き出す。
 - セッションを始めたとき、終えるときに、セッションの一覧を作り直す。
 
